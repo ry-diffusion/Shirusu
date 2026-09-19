@@ -12,13 +12,14 @@ struct RamblerSettings: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
 
-    private enum Tab: Hashable { case profiles, vocabulary }
+    private enum Tab: Hashable { case profiles, model, vocabulary }
     @State private var tab: Tab = .profiles
 
     var body: some View {
         VStack(spacing: 0) {
             Picker("Section", selection: $tab) {
                 Text("Profiles").tag(Tab.profiles)
+                Text("Rewrite model").tag(Tab.model)
                 Text("Vocabulary").tag(Tab.vocabulary)
             }
             .pickerStyle(.segmented)
@@ -32,6 +33,7 @@ struct RamblerSettings: View {
             Group {
                 switch tab {
                 case .profiles: ProfileWorkbench()
+                case .model: RewriteModelSettings()
                 case .vocabulary: VocabularyEditor()
                 }
             }
@@ -48,6 +50,82 @@ struct RamblerSettings: View {
         }
         .frame(width: 720, height: 540)
         .background(Ink.canvas)
+    }
+}
+
+// MARK: - Rewrite model
+
+private struct RewriteModelSettings: View {
+    @Environment(AppModel.self) private var app
+    @State private var apiKey = ""
+
+    var body: some View {
+        @Bindable var settings = app.modelConfig
+
+        Form {
+            Section("Provider") {
+                Picker("Rewrite with", selection: $settings.provider) {
+                    ForEach(RewriteProvider.allCases) { provider in
+                        Text(provider.label).tag(provider)
+                    }
+                }
+                .pickerStyle(.menu)
+                .onChange(of: settings.provider) { _, _ in
+                    app.rambler.prepare(for: app.profiles.selected)
+                }
+
+                if settings.provider == .appleIntelligence {
+                    Label("Runs entirely on this Mac. No dictated text is sent to a service.", systemImage: "lock.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Label("Gemini receives the dictation and the selected profile instruction.", systemImage: "network")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if settings.provider == .gemini {
+                Section {
+                    SecureField("Gemini API key", text: $apiKey)
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: apiKey) { _, key in settings.geminiAPIKey = key }
+
+                    HStack {
+                        Text("Stored in your login Keychain")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if !apiKey.isEmpty {
+                            Button("Remove key", role: .destructive) { apiKey = "" }
+                        }
+                    }
+
+                    Picker("Model", selection: $settings.geminiModel) {
+                        Text("Gemini 3.8 Flash").tag("gemini-3.8-flash")
+                        Text("Gemini 3 Flash Preview").tag("gemini-3-flash-preview")
+                    }
+                    .pickerStyle(.menu)
+
+                    Picker("Maximum output", selection: $settings.geminiMaximumOutputTokens) {
+                        Text("8,192 tokens").tag(8_192)
+                        Text("32,768 tokens (long profiles)").tag(32_768)
+                    }
+                    .pickerStyle(.menu)
+
+                    Link("Create a Gemini API key", destination: URL(string: "https://aistudio.google.com/app/apikey")!)
+                        .font(.system(size: 12))
+                } header: {
+                    Text("Gemini")
+                } footer: {
+                    Text("Gemini 3.8 Flash is the default. The longer limit is for transform profiles that intentionally produce a long document from a short dictation; ordinary clean-ups remain short because their profile says so.")
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .padding(.top, 6)
+        .onAppear { apiKey = settings.geminiAPIKey }
     }
 }
 

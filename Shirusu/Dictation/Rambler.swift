@@ -53,6 +53,8 @@ final class Rambler {
     }
 
     @ObservationIgnored private let model = SystemLanguageModel.default
+    @ObservationIgnored private let gemini = GeminiClient()
+    @ObservationIgnored private let settings: ModelConfig
     @ObservationIgnored private var warm: LanguageModelSession?
     @ObservationIgnored private var warmed: UUID?
     @ObservationIgnored private let log = Logger(
@@ -68,7 +70,18 @@ final class Rambler {
     private(set) var lastAttempt: Attempt?
 
     var availability: SystemLanguageModel.Availability { model.availability }
-    var isAvailable: Bool { model.isAvailable }
+    var isAvailable: Bool {
+        switch settings.provider {
+        case .appleIntelligence: model.isAvailable
+        case .gemini: settings.hasGeminiAPIKey
+        }
+    }
+
+    var provider: RewriteProvider { settings.provider }
+
+    init(settings: ModelConfig) {
+        self.settings = settings
+    }
 
     /// Loads the model before the first press needs it. Cold, the first
     /// response pays for the load on top of its own generation.
@@ -81,7 +94,9 @@ final class Rambler {
     /// the next, and this app builds a session per dictation. So warming with
     /// some other profile's instructions would load the model and nothing else.
     func prepare(for profile: RewriteProfile) {
-        guard model.isAvailable, warmed != profile.id else { return }
+        guard settings.provider == .appleIntelligence, model.isAvailable, warmed != profile.id else {
+            return
+        }
         let session = LanguageModelSession(
             model: model, instructions: Self.instructions(for: profile))
         session.prewarm()
@@ -122,10 +137,13 @@ final class Rambler {
     }
 
     private func run(_ raw: String, profile: RewriteProfile, enforcingLength: Bool) async -> Attempt {
-        guard model.isAvailable else {
-            log.notice("Rambler skipped: Apple Intelligence is unavailable")
+        guard isAvailable else {
+            log.notice("Rambler skipped: rewrite provider is unavailable")
             return Attempt(
-                output: raw, accepted: false, seconds: 0, refusal: .unavailable,
+                output: raw, accepted: false, seconds: 0,
+                refusal: settings.provider == .gemini
+                    ? .failed(String(localized: "Add a Gemini API key before using Gemini for rewriting.", comment: "Why a Gemini rewrite was not used"))
+                    : .unavailable,
                 profile: profile.name)
         }
         // The floor is about not making someone wait a second to tidy four
@@ -141,17 +159,28 @@ final class Rambler {
                 profile: profile.name)
         }
 
-        // A fresh session every time. These are separate thoughts dictated into
-        // separate apps, and a session that remembers the last one can blend it
-        // into this one.
-        let session = LanguageModelSession(
-            model: model, instructions: Self.instructions(for: profile))
-        defer { prepare(for: profile) }
-
         let started = ContinuousClock.now
         do {
-            let content = try await Self.generate(
-                with: session, prompt: Self.prompt(for: raw, profile: profile))
+            let content: String
+            switch settings.provider {
+            case .appleIntelligence:
+                // A fresh session every time. These are separate thoughts
+                // dictated into separate apps, and a session that remembers
+                // the last one can blend it into this one.
+                let session = LanguageModelSession(
+                    model: model, instructions: Self.instructions(for: profile))
+                defer { prepare(for: profile) }
+                content = try await Self.generate(
+                    with: session, prompt: Self.prompt(for: raw, profile: profile))
+            case .gemini:
+                content = try await gemini.generate(
+                    apiKey: settings.geminiAPIKey,
+                    model: settings.geminiModel,
+                    instructions: Self.instructions(for: profile),
+                    prompt: Self.prompt(for: raw, profile: profile),
+                    maximumOutputTokens: settings.geminiMaximumOutputTokens
+                )
+            }
             let output = content.trimmingCharacters(in: .whitespacesAndNewlines)
             let elapsed = Self.seconds(since: started)
             let refusal = Self.refusal(for: output, from: raw, transform: profile.isTransform)

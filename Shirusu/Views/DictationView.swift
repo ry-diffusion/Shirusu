@@ -37,6 +37,15 @@ struct DictationView: View {
             }
 
             Section {
+                Picker("Rewrite with", selection: Bindable(app.modelConfig).provider) {
+                    ForEach(RewriteProvider.allCases) { provider in
+                        Text(provider.label).tag(provider)
+                    }
+                }
+                .onChange(of: app.modelConfig.provider) { _, _ in
+                    app.rambler.prepare(for: app.profiles.selected)
+                }
+
                 Toggle(isOn: $app.isRambler) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Rambler")
@@ -50,39 +59,49 @@ struct DictationView: View {
                 .tint(Ink.accent)
                 .disabled(!app.rambler.isAvailable)
 
-                switch app.rambler.availability {
-                case .available:
-                    if app.isRambler {
-                        HStack {
-                            Picker("Profile", selection: Bindable(app.profiles).selection) {
-                                ForEach(app.profiles.all) { profile in
-                                    Text(profile.name).tag(profile.id)
-                                }
-                            }
-                            .pickerStyle(.menu)
-
-                            Button("Edit…") { isEditing = true }
-                        }
-
-                        // The profile's own words, not a summary of them.
-                        // There is nothing else to say about a profile that
-                        // its instruction does not already say.
-                        Text(app.profiles.selected.direction)
+                HStack {
+                    Button("Configure…") { isEditing = true }
+                    if app.modelConfig.provider == .gemini {
+                        Text(app.modelConfig.hasGeminiAPIKey
+                            ? app.modelConfig.geminiModel
+                            : "API key required")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
-                            .lineLimit(3)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                        if let attempt = app.rambler.lastAttempt {
-                            LastRun(attempt: attempt)
-                        }
                     }
-                case .unavailable(let reason):
-                    RamblerUnavailable(reason: reason)
+                }
+
+                if app.rambler.isAvailable, app.isRambler {
+                    HStack {
+                        Picker("Profile", selection: Bindable(app.profiles).selection) {
+                            ForEach(app.profiles.all) { profile in
+                                Text(profile.name).tag(profile.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        Button("Edit…") { isEditing = true }
+                    }
+
+                    // The profile's own words, not a summary of them.
+                    // There is nothing else to say about a profile that
+                    // its instruction does not already say.
+                    Text(app.profiles.selected.direction)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if let attempt = app.rambler.lastAttempt {
+                        LastRun(attempt: attempt)
+                    }
+                } else {
+                    RewriteUnavailable(provider: app.modelConfig.provider, availability: app.rambler.availability)
                 }
             } footer: {
-                Text("Apple's on-device model does the cleaning, so nothing you dictate leaves this Mac. It adds a second or two before the text is typed, and it is skipped for anything short.")
+                Text(app.modelConfig.provider == .appleIntelligence
+                    ? "Apple's on-device model does the cleaning, so nothing you dictate leaves this Mac. It adds a second or two before the text is typed, and it is skipped for anything short."
+                    : "Gemini sends the dictated text and profile instruction to Google. It is useful for long transforms; the result is still checked before anything is typed.")
             }
 
             Section("Globe key") {
@@ -180,8 +199,9 @@ private struct MicrophoneRow: View {
 /// Why the switch is off, and what to do about it, when there is something to
 /// be done. Apple Intelligence is a system setting, not something this app can
 /// turn on.
-private struct RamblerUnavailable: View {
-    var reason: SystemLanguageModel.Availability.UnavailableReason
+private struct RewriteUnavailable: View {
+    var provider: RewriteProvider
+    var availability: SystemLanguageModel.Availability
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -196,7 +216,15 @@ private struct RamblerUnavailable: View {
     }
 
     private var explanation: LocalizedStringKey {
-        switch reason {
+        guard provider == .appleIntelligence else {
+            return "Add a Gemini API key in Configure to use Gemini for rewriting."
+        }
+
+        switch availability {
+        case .available:
+            return "Apple Intelligence is unavailable right now, so dictation is typed exactly as spoken."
+        case .unavailable(let reason):
+            switch reason {
         case .appleIntelligenceNotEnabled:
             return "Rambler needs Apple Intelligence, which is switched off in System Settings."
         case .modelNotReady:
@@ -205,6 +233,7 @@ private struct RamblerUnavailable: View {
             return "This Mac does not support Apple Intelligence, so dictation is typed exactly as spoken."
         @unknown default:
             return "Apple Intelligence is unavailable right now, so dictation is typed exactly as spoken."
+        }
         }
     }
 }

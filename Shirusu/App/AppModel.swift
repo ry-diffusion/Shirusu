@@ -149,8 +149,11 @@ final class AppModel {
     /// The inputs this Mac has right now, kept current as they come and go.
     let inputs = AudioInputs()
 
+    /// Chooses the on-device or cloud rewrite engine and owns its secret.
+    let modelConfig: ModelConfig
+
     /// Cleans dictation up on release, when it is switched on.
-    let rambler = Rambler()
+    let rambler: Rambler
 
     /// The rewrite profiles, built-in and the user's own.
     let profiles = RewriteProfiles()
@@ -168,6 +171,12 @@ final class AppModel {
     private static let sourceKey = "captureSource"
     private static let ramblerKey = "rambler"
     private static let deliveryKey = "delivery"
+
+    init() {
+        let settings = ModelConfig()
+        modelConfig = settings
+        rambler = Rambler(settings: settings)
+    }
 
     /// Opens where it was left. First run starts on Transcribe: it is the one
     /// mode that works before any permission has been granted, so the app has
