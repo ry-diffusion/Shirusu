@@ -140,12 +140,8 @@ final class Rambler {
 
         let started = ContinuousClock.now
         do {
-            let prompt = Self.prompt(for: raw, profile: profile)
-            let content = try await Self.withTimeout(seconds: Self.patience) {
-                try await session.respond(
-                    to: prompt, options: GenerationOptions(temperature: 0)
-                ).content
-            }
+            let content = try await Self.generate(
+                with: session, prompt: Self.prompt(for: raw, profile: profile))
             let output = content.trimmingCharacters(in: .whitespacesAndNewlines)
             let elapsed = Self.seconds(since: started)
             let refusal = Self.refusal(for: output, from: raw, transform: profile.isTransform)
@@ -165,7 +161,8 @@ final class Rambler {
                 log.info(
                     """
                     Rambler (\(profile.name, privacy: .public)) took \
-                    \(elapsed, privacy: .public)s
+                    \(elapsed, privacy: .public)s for \
+                    \(Self.words(output).count, privacy: .public) words
                     """)
             }
             return Attempt(
@@ -177,7 +174,8 @@ final class Rambler {
             // watchdog lets go of it half a minute later.
             log.error(
                 """
-                Rambler gave up after \(Self.patience, privacy: .public)s \
+                Rambler gave up: nothing from the model for \
+                \(Self.stall, privacy: .public)s \
                 [\(profile.name, privacy: .public)]
                 """)
             return Attempt(
@@ -192,30 +190,64 @@ final class Rambler {
         }
     }
 
-    /// How long to wait for the model before giving up and using the
-    /// transcript as spoken.
+    /// How long the model may go without producing anything before it is
+    /// treated as having stopped.
     ///
-    /// Generation takes one to three seconds. This is not a budget, it is the
-    /// point at which something has gone wrong and waiting longer will not
-    /// help: dictation that never arrives is worse than dictation that was not
-    /// tidied.
-    private static let patience: Double = 20
+    /// Silence, not duration. The first version of this gave the whole request
+    /// twenty seconds, which is fine for tidying a sentence and badly wrong for
+    /// a profile that expands one spoken line into a page of XML: at the rate
+    /// this model generates, twenty seconds is a few hundred tokens, and a
+    /// profile doing exactly what it was asked to do was being reported as
+    /// having stopped answering.
+    ///
+    /// Ten seconds with nothing arriving is not slow, it is stopped. And the
+    /// Globe key interrupts whatever is in flight anyway, so nothing here has
+    /// to guess how long someone is willing to wait.
+    private static let stall: Double = 10
 
     private struct Timeout: Error {}
 
-    /// Runs `work`, or throws once `seconds` have passed.
-    private static func withTimeout<T: Sendable>(
-        seconds: Double, _ work: @escaping @Sendable () async throws -> T
-    ) async throws -> T {
-        try await withThrowingTaskGroup(of: T.self) { group in
-            group.addTask { try await work() }
+    /// The model's answer, streamed, so that a long one and a stuck one can be
+    /// told apart.
+    private static func generate(with session: LanguageModelSession, prompt: String) async throws
+        -> String
+    {
+        let pulse = Pulse()
+        return try await withThrowingTaskGroup(of: String?.self) { group in
             group.addTask {
-                try await Task.sleep(for: .seconds(seconds))
-                throw Timeout()
+                var latest = ""
+                for try await snapshot in session.streamResponse(
+                    to: prompt, options: GenerationOptions(temperature: 0)
+                ) {
+                    latest = snapshot.content
+                    await pulse.beat()
+                }
+                return latest
             }
-            // Whichever finishes first; the other is cancelled on the way out.
+            group.addTask {
+                while true {
+                    try await Task.sleep(for: .seconds(1))
+                    if await pulse.silence() > stall { throw Timeout() }
+                }
+            }
+            // Whichever settles first. The watchdog only ever throws, so a
+            // value here is the finished answer.
             defer { group.cancelAll() }
-            return try await group.next()!
+            guard let first = try await group.next(), let text = first else { throw Timeout() }
+            return text
+        }
+    }
+
+    /// When the model last produced something.
+    private actor Pulse {
+        private var last = ContinuousClock.now
+
+        func beat() { last = .now }
+
+        func silence() -> Double {
+            let elapsed = ContinuousClock.now - last
+            return Double(elapsed.components.seconds)
+                + Double(elapsed.components.attoseconds) / 1e18
         }
     }
 

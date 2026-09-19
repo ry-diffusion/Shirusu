@@ -71,7 +71,10 @@ final class Activity {
     private static func limit(of state: State) -> Duration? {
         switch state {
         case .transcribing: return .seconds(60)
-        case .polishing: return .seconds(25)
+        // Generous, because a profile that writes a page from one sentence is
+        // legitimately slow. Rambler watches for silence rather than duration,
+        // and the Globe key interrupts, so this is only the last resort.
+        case .polishing: return .seconds(180)
         case .delivered: return .seconds(10)
         case .idle, .dictating, .captioning, .failed: return nil
         }
