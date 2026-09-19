@@ -51,7 +51,22 @@ struct DictationView: View {
 
                 switch app.rambler.availability {
                 case .available:
-                    if app.isRambler { RamblerExample() }
+                    if app.isRambler {
+                        Picker("How far it goes", selection: $app.ramblerStyle) {
+                            ForEach(Rambler.Style.allCases) { style in
+                                Text(style.label).tag(style)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        Text(app.ramblerStyle.summary)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        RamblerExample()
+                    }
                 case .unavailable(let reason):
                     RamblerUnavailable(reason: reason)
                 }
@@ -156,7 +171,7 @@ private struct RamblerExample: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             line("You say", "um, so, send the commit to Pedro, no, to João", .secondary)
-            line("Shirusu types", "Send the commit to João.", .primary)
+            line("Balanced gives", "Send the commit to João.", .primary)
         }
         .padding(.vertical, 2)
     }

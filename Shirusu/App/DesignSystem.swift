@@ -30,6 +30,35 @@ enum Ink {
 
     static let hairline = Color.primary.opacity(0.09)
 
+    /// The hues Apple Intelligence wears on its own surfaces.
+    ///
+    /// Borrowed rather than invented, because this really is Apple's model
+    /// doing the work. A private colour would have been a second vocabulary for
+    /// something the system already has a vocabulary for, and people already
+    /// read this sweep as "a model is thinking".
+    static let intelligence: [Color] = [
+        Color(.sRGB, red: 0.98, green: 0.42, blue: 0.64),  // pink
+        Color(.sRGB, red: 0.72, green: 0.35, blue: 0.96),  // violet
+        Color(.sRGB, red: 0.36, green: 0.47, blue: 0.98),  // blue
+        Color(.sRGB, red: 0.30, green: 0.82, blue: 0.94),  // cyan
+    ]
+
+    /// The sweep, mirrored so it closes on itself without a seam.
+    ///
+    /// Takes the angle rather than being rotated by the caller: turning the
+    /// gradient inside a still shape is the effect. Turning the shape spins a
+    /// long capsule end over end, which is a different thing entirely.
+    static func intelligenceRing(angle: Double) -> AngularGradient {
+        let loop = intelligence + intelligence.dropLast().reversed()
+        return AngularGradient(
+            stops: loop.enumerated().map { index, colour in
+                .init(color: colour, location: Double(index) / Double(loop.count - 1))
+            },
+            center: .center,
+            angle: .degrees(angle)
+        )
+    }
+
     private static func dynamic(dark: NSColor, light: NSColor) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             let match = appearance.bestMatch(from: [.darkAqua, .aqua, .accessibilityHighContrastDarkAqua])

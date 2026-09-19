@@ -130,6 +130,11 @@ final class AppModel {
     /// Cleans dictation up on release, when it is switched on.
     let rambler = Rambler()
 
+    /// How far the model may go when it tidies dictation.
+    var ramblerStyle: Rambler.Style = AppModel.storedStyle {
+        didSet { UserDefaults.standard.set(ramblerStyle.rawValue, forKey: AppModel.styleKey) }
+    }
+
     /// Whether to tidy dictation before it is delivered.
     var isRambler: Bool = UserDefaults.standard.bool(forKey: AppModel.ramblerKey) {
         didSet {
@@ -138,13 +143,22 @@ final class AppModel {
         }
     }
 
-    /// True while the model is working on what was just said.
-    private(set) var isPolishing = false
+    /// What the model is doing to what was just said.
+    enum Polish: Equatable {
+        case idle
+        case working
+        /// It landed. Held for a moment so the change is visible before the bar
+        /// goes: the whole point of the feature happens in that one beat.
+        case settling
+    }
+
+    private(set) var polish: Polish = .idle
 
     private static let modeKey = "mode"
     private static let inputKey = "inputDevice"
     private static let sourceKey = "captureSource"
     private static let ramblerKey = "rambler"
+    private static let styleKey = "ramblerStyle"
     private static let deliveryKey = "delivery"
 
     /// Opens where it was left. First run starts on Transcribe: it is the one
@@ -155,6 +169,10 @@ final class AppModel {
     }
 
     /// Captions default to what the Mac is playing, which is what they are for.
+    private static var storedStyle: Rambler.Style {
+        Rambler.Style(rawValue: UserDefaults.standard.string(forKey: styleKey) ?? "") ?? .balanced
+    }
+
     private static var storedSource: CaptureSource {
         CaptureSource(rawValue: UserDefaults.standard.string(forKey: sourceKey) ?? "") ?? .systemAudio
     }
@@ -301,9 +319,21 @@ extension AppModel {
             // Surfaced, because it is a second or two of someone waiting with
             // their hands over the keyboard. An unexplained pause there reads
             // as the dictation having failed.
-            isPolishing = true
-            text = await rambler.polish(text)
-            isPolishing = false
+            polish = .working
+            let polished = await rambler.polish(text, style: ramblerStyle)
+            if polished != text {
+                text = polished
+                // Put the result where the raw text was. Watching the filler
+                // words go is the only way to see what this feature did, and it
+                // costs nothing: the bar is still up.
+                session?.transcript.apply(confirmed: text, volatile: "")
+            }
+            polish = .settling
+            Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(900))
+                guard let self, self.polish == .settling else { return }
+                self.polish = .idle
+            }
         }
 
         lastDictation = text

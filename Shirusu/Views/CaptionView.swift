@@ -33,7 +33,7 @@ struct CaptionView: View {
     /// Whether there is anything worth putting on screen.
     private var isShowing: Bool {
         if isPreview { return true }
-        if announcesItself { return isListening || hasText || app.isPolishing }
+        if announcesItself { return isListening || hasText || app.polish != .idle }
         // Live captions: only while words are actually arriving. `isSpeaking`
         // goes false a few seconds after the last new word, which is what
         // "there is nothing to caption right now" looks like from here.
@@ -64,15 +64,31 @@ struct CaptionView: View {
                 .glassEffect(.clear, in: .capsule)
                 .opacity(0.78)
         }
-        // Only while a key is being held. On a bar that is left on all day this
-        // would be a light turning in the corner of the eye for an hour.
-        .overlay { if announcesItself, isListening { LiveBorder() } }
+        .overlay { rim }
         .animation(Motion.settle, value: isListening)
+        .animation(Motion.settle, value: app.polish)
         .animation(reduceMotion ? nil : Motion.glide, value: slot)
         .padding(6)
         // Centred in a window that is larger than the plate ever gets, so the
         // plate is free to find its own width without the window moving.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Which rim, if any.
+    ///
+    /// The listening ring is only there while a key is being held. On a bar
+    /// left on all day it would be a light turning in the corner of the eye for
+    /// an hour, which is why live captions get no rim at all.
+    @ViewBuilder
+    private var rim: some View {
+        switch app.polish {
+        case .working:
+            IntelligenceBorder().transition(.opacity)
+        case .settling:
+            SettledBorder().transition(.opacity)
+        case .idle:
+            if announcesItself, isListening { LiveBorder().transition(.opacity) }
+        }
     }
 
     /// The natural width of the line, measured by it and reported back up.
@@ -101,7 +117,7 @@ struct CaptionView: View {
     /// screen this small.
     @ViewBuilder
     private var indicator: some View {
-        if app.isPolishing {
+        if app.polish == .working {
             // A second or two with hands over the keyboard needs something to
             // look at, or the dictation reads as having failed.
             BreathingWaveform(tint: .white.opacity(0.8))
@@ -241,6 +257,49 @@ private struct LiveBorder: View {
                     angle = 360
                 }
             }
+            .accessibilityHidden(true)
+    }
+}
+
+/// The rim while the model is working on what was just said.
+///
+/// Apple Intelligence's own colours, turning faster than the listening ring, so
+/// the two states are told apart by hue and by speed rather than by reading a
+/// label. This one means "something is being done to your words", which is a
+/// different promise from "I can hear you" and deserves to look different.
+private struct IntelligenceBorder: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var angle: Double = 0
+
+    var body: some View {
+        Capsule(style: .continuous)
+            // Built exactly like the listening ring, and turned the same way:
+            // the gradient's own angle moves while the capsule stays put. An
+            // earlier version rotated the view instead, which spins a
+            // four-hundred-point capsule about its centre and throws colour
+            // well outside the plate.
+            .strokeBorder(Ink.intelligenceRing(angle: angle), lineWidth: 1.4)
+            .onAppear {
+                guard !reduceMotion else { return }
+                // Faster than listening's 2.6 s, so the two rims are told apart
+                // by pace as well as by hue.
+                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                    angle = 360
+                }
+            }
+            .accessibilityHidden(true)
+    }
+}
+
+/// The moment it lands.
+///
+/// One ring in the brand accent, and then nothing. The sweep stopping is the
+/// event; a second flourish on top of the text changing underneath would be two
+/// things competing to announce the same thing.
+private struct SettledBorder: View {
+    var body: some View {
+        Capsule(style: .continuous)
+            .strokeBorder(Ink.accent.opacity(0.9), lineWidth: 1.6)
             .accessibilityHidden(true)
     }
 }
