@@ -11,16 +11,75 @@ nonisolated final class MicrophoneFeed: AudioFeed, @unchecked Sendable {
     let duration: TimeInterval? = nil
     let label: String
 
-    /// One engine for the whole process.
+    /// One engine per input device, reused across presses.
     ///
-    /// Each press of Dictate used to build its own `AVAudioEngine`. Stopping an
-    /// engine does not hand the HAL input thread back synchronously, so the next
-    /// one started while the previous still held it — which is CoreAudio logging
-    /// "HALB_IOThread::_Start: there already is a thread". One engine, taps
-    /// installed and removed around it, has nothing to race.
-    private static let engine = AVAudioEngine()
+    /// Not one per press: stopping an engine does not hand the HAL input thread
+    /// back synchronously, so the next one started while the previous still
+    /// held it, and CoreAudio logged "HALB_IOThread::_Start: there already is a
+    /// thread". Taps installed and removed around a standing engine have
+    /// nothing to race.
+    ///
+    /// And not one for the whole process either, which is what this was.
+    /// `AVAudioEngine` keeps the input node's client format from the device it
+    /// first opened, and pointing the node at a different one does not update
+    /// it. Switching from AirPods at 24 kHz to the built-in microphone at
+    /// 44.1 kHz left the engine still asking for 24 kHz, and it refused to
+    /// start: "Format mismatch: input hw 44100 Hz, client format 24000 Hz",
+    /// -10868. So the engine is rebuilt when the device changes, which is rare,
+    /// and kept when it does not, which is every press.
+    private static var current = AVAudioEngine()
+    private static var boundDevice: AudioDeviceID?
     /// Serialises start and teardown, which can arrive from different tasks.
     private static let lock = NSLock()
+
+    /// An engine already pointed at `device`, ready to be tapped.
+    ///
+    /// Callers hold `lock`.
+    private static func engine(for device: InputDevice?) -> AVAudioEngine {
+        let wanted = device?.deviceID
+
+        // A previous session that ended abruptly can leave its tap behind.
+        current.inputNode.removeTap(onBus: 0)
+        if current.isRunning { current.stop() }
+
+        guard wanted != boundDevice else {
+            current.reset()
+            return current
+        }
+
+        // The old one goes before the new one asks the HAL for a thread.
+        current = AVAudioEngine()
+        boundDevice = wanted
+        if let wanted { bind(current, to: wanted, device: device) }
+        return current
+    }
+
+    /// Points a fresh engine's input at a specific device.
+    ///
+    /// Before anything reads the format, because which device is open is what
+    /// decides the format.
+    private static func bind(_ engine: AVAudioEngine, to id: AudioDeviceID, device: InputDevice?) {
+        var id = id
+        let status = engine.inputNode.withAudioUnit { unit -> OSStatus in
+            guard let unit else { return kAudioUnitErr_Uninitialized }
+            return AudioUnitSetProperty(
+                unit,
+                kAudioOutputUnitProperty_CurrentDevice,
+                kAudioUnitScope_Global,
+                0,
+                &id,
+                UInt32(MemoryLayout<AudioDeviceID>.size)
+            )
+        }
+        guard status != noErr else { return }
+        // Not fatal: the engine still has the system default open, and
+        // dictating from the wrong microphone beats refusing to dictate.
+        Logger(subsystem: "br.com.zesmoi.Shirusu", category: "mic").error(
+            """
+            Could not switch to \(device?.name ?? "that input", privacy: .public) \
+            (\(status, privacy: .public)); staying on the default input
+            """)
+    }
 
     /// Which input to open. `nil` means whatever the system calls default.
     private let device: InputDevice?
@@ -47,41 +106,8 @@ nonisolated final class MicrophoneFeed: AudioFeed, @unchecked Sendable {
             Self.lock.lock()
             defer { Self.lock.unlock() }
 
-            let engine = Self.engine
+            let engine = Self.engine(for: device)
             let input = engine.inputNode
-
-            // A previous session that ended abruptly can leave its tap behind.
-            input.removeTap(onBus: 0)
-            if engine.isRunning { engine.stop() }
-            engine.reset()
-
-            // Before the format is read, because pointing the node at another
-            // device is what decides the format. The engine has to be stopped
-            // for this, which it is: the reset above just saw to that.
-            if let device {
-                var id = device.deviceID
-                let status = input.withAudioUnit { unit -> OSStatus in
-                    guard let unit else { return kAudioUnitErr_Uninitialized }
-                    return AudioUnitSetProperty(
-                        unit,
-                        kAudioOutputUnitProperty_CurrentDevice,
-                        kAudioUnitScope_Global,
-                        0,
-                        &id,
-                        UInt32(MemoryLayout<AudioDeviceID>.size)
-                    )
-                }
-                if status != noErr {
-                    // Not fatal: the engine still has the system default open,
-                    // and captioning from the wrong microphone beats refusing
-                    // to caption at all.
-                    log.error(
-                        """
-                        Could not switch to \(device.name, privacy: .public) \
-                        (\(status, privacy: .public)); staying on the default input
-                        """)
-                }
-            }
 
             // The tap sits on the node's *output* bus, so it wants the output
             // format. Handing it the hardware input format instead is what makes
@@ -122,6 +148,10 @@ nonisolated final class MicrophoneFeed: AudioFeed, @unchecked Sendable {
                     DispatchQueue.global(qos: .utility).async {
                         Self.lock.lock()
                         defer { Self.lock.unlock() }
+                        // `engine` is captured, not read back off the class: by
+                        // the time this runs the device may have changed and
+                        // the current engine may be a different object, which
+                        // this has no business stopping.
                         input.removeTap(onBus: 0)
                         if engine.isRunning { engine.stop() }
                     }
@@ -129,7 +159,11 @@ nonisolated final class MicrophoneFeed: AudioFeed, @unchecked Sendable {
 
                 engine.prepare()
                 try engine.start()
-                log.info("Microphone engine started at \(rate, privacy: .public) Hz")
+                log.info(
+                    """
+                    \(self.label, privacy: .public) open at \(rate, privacy: .public) Hz, \
+                    \(format.channelCount, privacy: .public) ch
+                    """)
             } catch {
                 input.removeTap(onBus: 0)
                 continuation.finish(throwing: error)

@@ -85,6 +85,27 @@ actor BatchTranscriber {
     /// Shorter than this and the decoder rejects the buffer outright.
     static let minimumSamples = 16_000
 
+    /// Runs one throwaway pass so the first real one does not pay for it.
+    ///
+    /// Loading the models is not the same as being ready to use them. CoreML
+    /// specialises a graph for the Neural Engine on its first prediction, and
+    /// without this that cost lands on whoever presses the key first — the one
+    /// press where the delay is most likely to be read as the feature being
+    /// slow. A second of near-silence goes down the identical path and moves it
+    /// to launch, where nobody is waiting.
+    ///
+    /// Not digital silence: a floor of noise keeps any short-circuit on an
+    /// all-zero buffer from skipping the encoder this exists to warm.
+    func warmUp() async {
+        guard isLoaded, !isWarm else { return }
+        isWarm = true
+        var samples = [Float](repeating: 0, count: Self.minimumSamples)
+        for index in samples.indices { samples[index] = Float.random(in: -0.001...0.001) }
+        _ = try? await transcribe(samples)
+    }
+
+    private var isWarm = false
+
     func transcribe(_ samples: [Float]) async throws -> String {
         guard samples.count >= Self.minimumSamples else { return "" }
         var state = TdtDecoderState.make(decoderLayers: await manager.decoderLayerCount)

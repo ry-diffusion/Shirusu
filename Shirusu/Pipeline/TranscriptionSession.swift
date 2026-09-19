@@ -102,9 +102,18 @@ final class TranscriptionSession {
         return min(position / duration, 1)
     }
 
-    /// Loads the engine before the first press needs it.
+    /// Gets everything ready before the first press needs it.
+    ///
+    /// The microphone is deliberately not part of this. Opening an input device
+    /// at launch is what triggers the permission prompt and lights the orange
+    /// recording dot, and an app that does that on the way up looks like it is
+    /// listening when it is not. The model is warmed; the microphone waits to
+    /// be asked.
     func prepare() async {
+        let started = ContinuousClock.now
         try? await engine.load(models)
+        await engine.warmUp()
+        log.info("Recogniser warm in \(started.duration(to: .now), privacy: .public)")
     }
 
     func start(_ feed: AudioFeed, intent: Intent = .utterance) {
