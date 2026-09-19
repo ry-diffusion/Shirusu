@@ -559,6 +559,28 @@
         }
       }
     },
+    "Last dictation was kept as spoken. %@": {
+      "comment": "Rambler outcome and the reason it was not used",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O último ditado foi mantido como falado. %@"
+          }
+        }
+      }
+    },
+    "Last dictation was rewritten by %@.": {
+      "comment": "Rambler outcome, followed by nothing",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O último ditado foi reescrito pelo %@."
+          }
+        }
+      }
+    },
     "Length changed too much for this setting, so it was discarded.": {
       "comment": "Why a rewrite was not used",
       "localizations": {

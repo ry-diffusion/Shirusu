@@ -119,7 +119,6 @@ final class AppModel {
     var mode: Mode = AppModel.storedMode {
         didSet {
             UserDefaults.standard.set(mode.rawValue, forKey: AppModel.modeKey)
-            if isRambler { rambler.prepare() }
             // Nothing is stopped here on purpose. The sidebar chooses what you
             // are looking at, not what the app is doing: captions left on stay
             // on while you read a transcript, and the sidebar row says so.
@@ -245,8 +244,23 @@ final class AppModel {
             stage = .ready
             // Warm the release pass in the background: the window is already
             // usable, and the first press should not pay for it.
-            Task { await live.prepare() }
-            if isRambler { rambler.prepare() }
+            // Warmed after the first-run screen has finished animating out,
+            // not during it. Loading the CoreML graph and pushing a throwaway
+            // second of audio through the Neural Engine is the heaviest thing
+            // this app does, and doing it while the setup view is still
+            // cross-fading drops frames in the middle of the animation.
+            //
+            // It has to happen at launch either way: unwarmed, the whole cost
+            // lands on the first press of the Globe key, which is the one press
+            // where a delay reads as the feature being slow.
+            Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(700))
+                await live.prepare()
+                guard let self else { return }
+                self.rambler.prepare()
+                // The window the caption lives in, built but not shown.
+                self.captions.prepare(CaptionView().environment(self))
+            }
             bindHotkey()
             // Arm it without asking: if Accessibility was already granted this
             // just works, and if it was not, the toolbar shows why.

@@ -19,6 +19,27 @@ final class CaptionPanel {
     @ObservationIgnored private var panel: NSPanel?
     @ObservationIgnored private var dismissal: Task<Void, Never>?
 
+    /// Builds the window and its hosting view without showing either.
+    ///
+    /// The first press of the Globe key otherwise pays for an `NSPanel`, an
+    /// `NSHostingView` and the first layout of a Liquid Glass capsule, on top
+    /// of opening the microphone and waking the recogniser. None of that is
+    /// visible work, and all of it can be done at launch instead.
+    func prepare(_ content: some View) {
+        guard panel == nil else { return }
+        let panel = makePanel()
+        let host = NSHostingView(rootView: AnyView(content))
+        host.layer?.backgroundColor = nil
+        host.sizingOptions = []
+        panel.contentView = host
+        panel.setFrame(Self.frame, display: false)
+        // Laid out, so the first real show is not the first layout, but never
+        // ordered front: `alphaValue` is left at zero until `show` raises it.
+        panel.alphaValue = 0
+        host.layoutSubtreeIfNeeded()
+        self.panel = panel
+    }
+
     func show(_ content: some View) {
         dismissal?.cancel()
         dismissal = nil
@@ -34,6 +55,7 @@ final class CaptionPanel {
         host.sizingOptions = []
 
         let wasVisible = panel.isVisible
+        panel.alphaValue = 1
         panel.contentView = host
         // Always, not only on first show: the screen can change under it.
         panel.setFrame(Self.frame, display: false)

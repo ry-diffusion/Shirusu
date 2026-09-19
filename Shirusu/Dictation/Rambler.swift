@@ -32,6 +32,8 @@ final class Rambler {
         var seconds: Double
         /// Why it was turned down, when it was.
         var refusal: Refusal?
+        /// Which profile produced it, so the screen can name it.
+        var profile: String = ""
     }
 
     enum Refusal: Sendable {
@@ -48,6 +50,15 @@ final class Rambler {
     @ObservationIgnored private var warm: LanguageModelSession?
     @ObservationIgnored private let log = Logger(
         subsystem: "br.com.zesmoi.Shirusu", category: "rambler")
+
+    /// What happened the last time dictation was polished.
+    ///
+    /// Kept because every way this can decline to change your text used to be
+    /// silent. Three separate paths returned the transcript unchanged without
+    /// so much as a log line, so a profile that was being refused every time
+    /// and a profile that was never reached looked exactly alike from the
+    /// outside: nothing happened, no reason given.
+    private(set) var lastAttempt: Attempt?
 
     var availability: SystemLanguageModel.Availability { model.availability }
     var isAvailable: Bool { model.isAvailable }
@@ -69,8 +80,8 @@ final class Rambler {
     /// Returns the cleaned text, or the original if cleaning it would be a
     /// guess rather than an edit.
     func polish(_ raw: String, profile: RewriteProfile) async -> String {
-        guard Self.words(raw).count >= Self.minimumWords else { return raw }
         let attempt = await run(raw, profile: profile, enforcingLength: true)
+        lastAttempt = attempt
         return attempt.accepted ? attempt.output : raw
     }
 
@@ -85,10 +96,20 @@ final class Rambler {
 
     private func run(_ raw: String, profile: RewriteProfile, enforcingLength: Bool) async -> Attempt {
         guard model.isAvailable else {
-            return Attempt(output: raw, accepted: false, seconds: 0, refusal: .unavailable)
+            log.notice("Rambler skipped: Apple Intelligence is unavailable")
+            return Attempt(
+                output: raw, accepted: false, seconds: 0, refusal: .unavailable,
+                profile: profile.name)
         }
         if enforcingLength, Self.words(raw).count < Self.minimumWords {
-            return Attempt(output: raw, accepted: false, seconds: 0, refusal: .tooShort)
+            log.info(
+                """
+                Rambler skipped: \(Self.words(raw).count, privacy: .public) words, \
+                under the floor of \(Self.minimumWords, privacy: .public)
+                """)
+            return Attempt(
+                output: raw, accepted: false, seconds: 0, refusal: .tooShort,
+                profile: profile.name)
         }
 
         // A fresh session every time. These are separate thoughts dictated into
@@ -107,17 +128,34 @@ final class Rambler {
             let output = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
             let elapsed = Self.seconds(since: started)
             let refusal = Self.refusal(for: output, from: raw)
-            if refusal != nil {
-                log.notice("Rambler output rejected; keeping the transcript as spoken")
+            if let refusal {
+                // Named, because "rejected" on its own is what made a profile
+                // that never worked indistinguishable from one that was never
+                // reached.
+                log.notice(
+                    """
+                    Rambler kept the transcript as spoken: \
+                    \(refusal.diagnostic, privacy: .public) \
+                    [\(profile.name, privacy: .public), \
+                    \(Self.words(raw).count, privacy: .public) -> \
+                    \(Self.words(output).count, privacy: .public) words]
+                    """)
+            } else {
+                log.info(
+                    """
+                    Rambler (\(profile.name, privacy: .public)) took \
+                    \(elapsed, privacy: .public)s
+                    """)
             }
             return Attempt(
-                output: output, accepted: refusal == nil, seconds: elapsed, refusal: refusal)
+                output: output, accepted: refusal == nil, seconds: elapsed, refusal: refusal,
+                profile: profile.name)
         } catch {
             // Never a reason to lose the dictation.
             log.error("Rambler failed: \(error.localizedDescription, privacy: .public)")
             return Attempt(
                 output: raw, accepted: false, seconds: Self.seconds(since: started),
-                refusal: .failed(error.localizedDescription))
+                refusal: .failed(error.localizedDescription), profile: profile.name)
         }
     }
 
@@ -315,6 +353,21 @@ extension Rambler.Refusal {
                 comment: "Why a rewrite was not used")
         case .failed(let message):
             return message
+        }
+    }
+}
+
+extension Rambler.Refusal {
+    /// Four words for the log. The long form is for the screen.
+    var diagnostic: String {
+        switch self {
+        case .unavailable: return "model unavailable"
+        case .tooShort: return "too short"
+        case .differentLanguage: return "came back in another language"
+        case .wrongLength: return "length out of bounds"
+        case .figuresChanged: return "a figure went missing"
+        case .tooLittleInCommon: return "too little in common with what was said"
+        case .failed(let message): return message
         }
     }
 }

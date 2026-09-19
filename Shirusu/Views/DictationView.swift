@@ -73,6 +73,10 @@ struct DictationView: View {
                             .lineLimit(3)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
+
+                        if let attempt = app.rambler.lastAttempt {
+                            LastRun(attempt: attempt)
+                        }
                     }
                 case .unavailable(let reason):
                     RamblerUnavailable(reason: reason)
@@ -202,5 +206,38 @@ private struct RamblerUnavailable: View {
         @unknown default:
             return "Apple Intelligence is unavailable right now, so dictation is typed exactly as spoken."
         }
+    }
+}
+
+/// What happened the last time dictation was polished.
+///
+/// Here because a profile being refused and a profile never being reached used
+/// to look identical: your words, unchanged, no reason given. Whether the
+/// rewrite was used is the one thing you cannot see by reading the result.
+private struct LastRun: View {
+    var attempt: Rambler.Attempt
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 7) {
+            Image(systemName: attempt.accepted ? "checkmark.circle.fill" : "arrow.uturn.backward.circle.fill")
+                .font(.system(size: 10))
+            Text(caption)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 10))
+        .foregroundStyle(attempt.accepted ? AnyShapeStyle(Ink.accent) : AnyShapeStyle(HierarchicalShapeStyle.secondary))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var caption: String {
+        if attempt.accepted {
+            return String(
+                localized: "Last dictation was rewritten by \(attempt.profile).",
+                comment: "Rambler outcome, followed by nothing")
+        }
+        return String(
+            localized: "Last dictation was kept as spoken. \(attempt.refusal?.explanation ?? "")",
+            comment: "Rambler outcome and the reason it was not used")
     }
 }
