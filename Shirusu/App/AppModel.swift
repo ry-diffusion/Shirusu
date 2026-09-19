@@ -40,6 +40,15 @@ final class AppModel {
     /// What the live half of the app is doing. One answer, and a checked one.
     let activity = Activity()
 
+    /// The delivery in flight, and which dictation it belongs to.
+    ///
+    /// Pressing the Globe key abandons both. Cancelling alone is not enough:
+    /// `respond` may already be past the point of noticing, and a rewrite that
+    /// lands after the interruption would be typed into the middle of the
+    /// sentence being dictated now. The number is what makes that impossible.
+    @ObservationIgnored private var deliveryTask: Task<Void, Never>?
+    @ObservationIgnored private var runNumber = 0
+
     /// The three jobs one engine can do, and the only thing the Globe key needs
     /// to know.
     ///
@@ -237,7 +246,13 @@ final class AppModel {
             // Only an utterance run finishes, and only dictation makes one:
             // captions run continuously and never take a release pass.
             live.onFinish = { [weak self] text in
-                Task { await self?.deliver(text) }
+                guard let self else { return }
+                self.deliveryTask = Task { await self.deliver(text) }
+            }
+            // A state released for taking too long is a reason too.
+            activity.onStuck = { [weak self] _ in
+                guard let self else { return }
+                self.rambler.note(.timedOut, profile: self.profiles.selected)
             }
             self.liveSession = live
             self.fileSession = TranscriptionSession(models: models, engine: engine)
@@ -326,12 +341,26 @@ extension AppModel {
             return
         }
 
+        let mine = runNumber
         var text = text
-        if isRambler, activity.move(to: .polishing) {
+        if isRambler {
+            guard activity.move(to: .polishing) else {
+                // Already interrupted, before the rewrite even started.
+                rambler.note(.interrupted, profile: profiles.selected)
+                return
+            }
             // Surfaced, because it is a second or two of someone waiting with
             // their hands over the keyboard. An unexplained pause there reads
             // as the dictation having failed.
             let polished = await rambler.polish(text, profile: profiles.selected)
+
+            guard mine == runNumber, !Task.isCancelled else {
+                // A new dictation started while this was being rewritten. It
+                // owns the machine and the caption bar now, so this one goes
+                // quietly rather than typing itself into the middle of it.
+                rambler.note(.interrupted, profile: profiles.selected)
+                return
+            }
             if polished != text {
                 text = polished
                 // Put the result where the raw text was. Watching the filler
@@ -409,6 +438,10 @@ extension AppModel {
         // The machine decides whether this is allowed at all, which is what
         // stops a press landing on top of a delivery that has not finished.
         guard activity.move(to: purpose == .dictation ? .dictating : .captioning) else { return }
+        // Whatever the last press left running is no longer wanted.
+        deliveryTask?.cancel()
+        deliveryTask = nil
+        runNumber &+= 1
         captureProblem = nil
 
         // Dictation is always the microphone: the point is your own voice, and

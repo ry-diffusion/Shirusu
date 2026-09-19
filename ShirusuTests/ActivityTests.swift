@@ -29,19 +29,28 @@ struct ActivityTests {
         #expect(activity.move(to: .delivered))
     }
 
-    @Test("A press cannot land on top of work already running")
-    func noPressWhileWorking() {
+    @Test("The Globe key interrupts whatever is in flight")
+    func pressInterruptsWork() {
+        // It used to be refused, on the grounds that a rewrite landing in the
+        // middle of the next sentence is worse than a dead key. It is not:
+        // when Apple Intelligence stopped answering, the key sat dead for half
+        // a minute. The press wins, and AppModel abandons what it interrupted.
+        for busy in [Activity.State.transcribing, .polishing] {
+            let activity = Activity()
+            activity.move(to: .dictating)
+            activity.move(to: .transcribing)
+            if busy == .polishing { activity.move(to: .polishing) }
+            #expect(activity.state == busy)
+            #expect(activity.move(to: .dictating))
+        }
+    }
+
+    @Test("A failure does not need clearing before the key works again")
+    func pressAfterFailure() {
         let activity = Activity()
         activity.move(to: .dictating)
-        activity.move(to: .transcribing)
-        // The Globe key while the release pass is still decoding.
-        #expect(!activity.move(to: .dictating))
-        #expect(activity.state == .transcribing)
-
-        activity.move(to: .polishing)
-        // And while the model is rewriting it.
-        #expect(!activity.move(to: .dictating))
-        #expect(activity.state == .polishing)
+        activity.move(to: .failed("no microphone"))
+        #expect(activity.move(to: .dictating))
     }
 
     @Test("Dictating again while the last result is still on screen is fine")
@@ -53,8 +62,11 @@ struct ActivityTests {
         #expect(activity.move(to: .dictating))
     }
 
-    @Test("Captions and dictation cannot overlap: one session, one job")
+    @Test("Captions are the one thing the key does not interrupt")
     func captionsAreExclusive() {
+        // Stopping a caption run someone switched on, without being asked and
+        // without putting it back, is a worse surprise than a press that does
+        // nothing. Captions have their own switch.
         let activity = Activity()
         #expect(activity.move(to: .captioning))
         #expect(!activity.move(to: .dictating))

@@ -36,6 +36,9 @@ final class Activity {
 
     private(set) var state: State = .idle
 
+    /// Told when a state had to be released for taking too long, so the screen
+    /// can say so rather than just quietly working again.
+    @ObservationIgnored var onStuck: ((State) -> Void)?
     @ObservationIgnored private var lapse: Task<Void, Never>?
     private let log = Logger(subsystem: "br.com.zesmoi.Shirusu", category: "activity")
 
@@ -68,7 +71,7 @@ final class Activity {
     private static func limit(of state: State) -> Duration? {
         switch state {
         case .transcribing: return .seconds(60)
-        case .polishing: return .seconds(30)
+        case .polishing: return .seconds(25)
         case .delivered: return .seconds(10)
         case .idle, .dictating, .captioning, .failed: return nil
         }
@@ -87,6 +90,7 @@ final class Activity {
                 releasing so the key works again
                 """)
             self.state = .idle
+            self.onStuck?(state)
         }
     }
 
@@ -115,15 +119,27 @@ final class Activity {
         case (.dictating, .idle), (.transcribing, .idle), (.polishing, .idle):
             return true
 
-        // Dictating again before the last result has faded. The bar is still
-        // showing the previous utterance, but the person has clearly moved on.
-        case (.delivered, .dictating):
+        // The Globe key is an escape hatch, so it wins. Whatever is in flight,
+        // pressing it means "listen to me now", and a key that does nothing
+        // because the last utterance is still being rewritten is a key that
+        // looks broken — which is exactly how it looked when Apple
+        // Intelligence hung and this sat in `polishing` for thirty seconds.
+        //
+        // Whoever allows this has to abandon what it interrupted. AppModel
+        // cancels the delivery and stamps the run, so a rewrite that finishes
+        // after the interruption is dropped instead of typed into the middle
+        // of the next sentence.
+        case (.transcribing, .dictating),
+            (.polishing, .dictating),
+            (.delivered, .dictating),
+            (.failed, .dictating):
             return true
 
-        // Captions are a switch, not a sequence. Nothing leads into them and
-        // nothing leads out but stopping, which is what keeps them from
-        // overlapping a dictation: there is one live session and it does one
-        // job at a time.
+        // Captions are the one thing the key does not interrupt. There is one
+        // live session and it does one job at a time, so a press would have to
+        // stop them, and stopping a caption run someone switched on — without
+        // being asked and without putting it back — is a worse surprise than a
+        // press that does nothing. They have their own switch.
         case (.idle, .captioning), (.captioning, .idle):
             return true
 

@@ -1171,6 +1171,17 @@
         }
       }
     },
+    "The model stopped answering, so your words were typed as spoken.": {
+      "comment": "Why a rewrite was not used",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O modelo parou de responder, então suas palavras foram digitadas como faladas."
+          }
+        }
+      }
+    },
     "The room, through the microphone.": {
       "localizations": {
         "pt-BR": {
@@ -1384,6 +1395,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escrito para o modelo como instrução. Está em inglês porque as instruções do modelo estão, e misturar idiomas ali foi o que fez ele traduzir."
+          }
+        }
+      }
+    },
+    "You started dictating again, so this one was dropped.": {
+      "comment": "Why a rewrite was not used",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Você começou a ditar de novo, então este foi descartado."
           }
         }
       }

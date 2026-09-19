@@ -45,6 +45,10 @@ final class Rambler {
         case tooLittleInCommon
         /// A transform that returned its input.
         case unchanged
+        /// The model never answered.
+        case timedOut
+        /// A new dictation started before this one landed.
+        case interrupted
         case failed(String)
     }
 
@@ -92,6 +96,17 @@ final class Rambler {
     ///
     /// The one difference is the word floor: a short sample is worth trying in
     /// a test field, where somebody is deliberately looking at the result.
+    /// Records an outcome that did not come from the model.
+    ///
+    /// Abandoning a rewrite is a reason too. Interrupting one and having it
+    /// hang look identical from the outside — your words, unchanged — and the
+    /// screen has to be able to tell them apart or it is back to saying
+    /// nothing at all.
+    func note(_ refusal: Refusal, profile: RewriteProfile) {
+        lastAttempt = Attempt(
+            output: "", accepted: false, seconds: 0, refusal: refusal, profile: profile.name)
+    }
+
     func attempt(_ raw: String, profile: RewriteProfile) async -> Attempt {
         await run(raw, profile: profile, enforcingLength: false)
     }
@@ -125,11 +140,13 @@ final class Rambler {
 
         let started = ContinuousClock.now
         do {
-            let response = try await session.respond(
-                to: Self.prompt(for: raw, profile: profile),
-                options: GenerationOptions(temperature: 0)
-            )
-            let output = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            let prompt = Self.prompt(for: raw, profile: profile)
+            let content = try await Self.withTimeout(seconds: Self.patience) {
+                try await session.respond(
+                    to: prompt, options: GenerationOptions(temperature: 0)
+                ).content
+            }
+            let output = content.trimmingCharacters(in: .whitespacesAndNewlines)
             let elapsed = Self.seconds(since: started)
             let refusal = Self.refusal(for: output, from: raw, transform: profile.isTransform)
             if let refusal {
@@ -154,12 +171,51 @@ final class Rambler {
             return Attempt(
                 output: output, accepted: refusal == nil, seconds: elapsed, refusal: refusal,
                 profile: profile.name)
+        } catch is Timeout {
+            // The case this was written for: Apple Intelligence stops
+            // answering, and without a limit the key sits dead until the
+            // watchdog lets go of it half a minute later.
+            log.error(
+                """
+                Rambler gave up after \(Self.patience, privacy: .public)s \
+                [\(profile.name, privacy: .public)]
+                """)
+            return Attempt(
+                output: raw, accepted: false, seconds: Self.seconds(since: started),
+                refusal: .timedOut, profile: profile.name)
         } catch {
             // Never a reason to lose the dictation.
             log.error("Rambler failed: \(error.localizedDescription, privacy: .public)")
             return Attempt(
                 output: raw, accepted: false, seconds: Self.seconds(since: started),
                 refusal: .failed(error.localizedDescription), profile: profile.name)
+        }
+    }
+
+    /// How long to wait for the model before giving up and using the
+    /// transcript as spoken.
+    ///
+    /// Generation takes one to three seconds. This is not a budget, it is the
+    /// point at which something has gone wrong and waiting longer will not
+    /// help: dictation that never arrives is worse than dictation that was not
+    /// tidied.
+    private static let patience: Double = 20
+
+    private struct Timeout: Error {}
+
+    /// Runs `work`, or throws once `seconds` have passed.
+    private static func withTimeout<T: Sendable>(
+        seconds: Double, _ work: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask { try await work() }
+            group.addTask {
+                try await Task.sleep(for: .seconds(seconds))
+                throw Timeout()
+            }
+            // Whichever finishes first; the other is cancelled on the way out.
+            defer { group.cancelAll() }
+            return try await group.next()!
         }
     }
 
@@ -405,6 +461,14 @@ extension Rambler.Refusal {
             return String(
                 localized: "Came back unchanged, so the profile's instruction was not followed.",
                 comment: "Why a rewrite was not used")
+        case .timedOut:
+            return String(
+                localized: "The model stopped answering, so your words were typed as spoken.",
+                comment: "Why a rewrite was not used")
+        case .interrupted:
+            return String(
+                localized: "You started dictating again, so this one was dropped.",
+                comment: "Why a rewrite was not used")
         case .failed(let message):
             return message
         }
@@ -422,6 +486,8 @@ extension Rambler.Refusal {
         case .figuresChanged: return "a figure went missing"
         case .tooLittleInCommon: return "too little in common with what was said"
         case .unchanged: return "returned unchanged"
+        case .timedOut: return "timed out"
+        case .interrupted: return "interrupted by a new dictation"
         case .failed(let message): return message
         }
     }
