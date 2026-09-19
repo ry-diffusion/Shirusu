@@ -54,6 +54,7 @@ struct HoldToTalk: View {
                 .onEnded { _ in
                     guard isHeld else { return }
                     isHeld = false
+                    app.activity.move(to: .transcribing)
                     app.session?.stop()
                     app.captions.hide(after: app.isRambler ? 12 : 2)
                 }

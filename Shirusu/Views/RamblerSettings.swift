@@ -194,19 +194,6 @@ private struct ProfileWorkbench: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                Picker("How much it may change", selection: binding(for: profile, \.latitude)) {
-                    ForEach(RewriteProfile.Latitude.allCases) { latitude in
-                        Text(latitude.label).tag(latitude)
-                    }
-                }
-                .pickerStyle(.menu)
-                .disabled(locked)
-                Text(profile.latitude.summary)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-            }
-
             if locked {
                 Label("Built in, so it cannot be edited. Duplicate it to make a version you can change.", systemImage: "lock")
                     .font(.system(size: 10))

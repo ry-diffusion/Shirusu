@@ -171,28 +171,6 @@
         }
       }
     },
-    "Can choose different words and cut the result down.": {
-      "comment": "Rewrite latitude explanation",
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pode escolher outras palavras e encurtar o resultado."
-          }
-        }
-      }
-    },
-    "Can choose different words for the same thing, at about the same length.": {
-      "comment": "Rewrite latitude explanation",
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pode escolher outras palavras para a mesma coisa, com tamanho parecido."
-          }
-        }
-      }
-    },
     "Captions appear here while this is on": {
       "localizations": {
         "pt-BR": {
@@ -561,33 +539,12 @@
         }
       }
     },
-    "How much it may change": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O quanto ele pode mudar"
-          }
-        }
-      }
-    },
     "How quickly the file is fed to the recogniser. Real time plays it back as you read along.": {
       "localizations": {
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
             "value": "Com que velocidade o arquivo chega ao reconhecedor. Tempo real toca junto com a leitura."
-          }
-        }
-      }
-    },
-    "Keep my words": {
-      "comment": "Rewrite latitude",
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Manter minhas palavras"
           }
         }
       }
@@ -707,28 +664,6 @@
         }
       }
     },
-    "May reword": {
-      "comment": "Rewrite latitude",
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pode trocar palavras"
-          }
-        }
-      }
-    },
-    "May reword and shorten": {
-      "comment": "Rewrite latitude",
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pode trocar palavras e encurtar"
-          }
-        }
-      }
-    },
     "Microphone": {
       "comment": "Capture source",
       "localizations": {
@@ -797,17 +732,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "OK"
-          }
-        }
-      }
-    },
-    "Only removes. Anything left standing is something you said.": {
-      "comment": "Rewrite latitude explanation",
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Só remove. O que sobrar é coisa que você falou."
           }
         }
       }

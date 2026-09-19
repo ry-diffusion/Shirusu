@@ -32,12 +32,12 @@ struct CaptionView: View {
     /// Keyed to what is actually running rather than to the selected tab. The
     /// Globe key works from anywhere now, so "which screen is showing" stopped
     /// being a reliable answer to "what is this bar for".
-    private var announcesItself: Bool { app.live != .captions }
+    private var announcesItself: Bool { !app.activity.isCaptioning }
 
     /// Whether there is anything worth putting on screen.
     private var isShowing: Bool {
         if isPreview { return true }
-        if announcesItself { return isListening || hasText || app.polish != .idle }
+        if announcesItself { return isListening || hasText || app.activity.isWorking }
         // Live captions: only while words are actually arriving. `isSpeaking`
         // goes false a few seconds after the last new word, which is what
         // "there is nothing to caption right now" looks like from here.
@@ -70,7 +70,7 @@ struct CaptionView: View {
         }
         .overlay { rim }
         .animation(Motion.settle, value: isListening)
-        .animation(Motion.settle, value: app.polish)
+        .animation(Motion.settle, value: app.activity.state)
         .animation(reduceMotion ? nil : Motion.glide, value: slot)
         .padding(6)
         // Centred in a window that is larger than the plate ever gets, so the
@@ -85,12 +85,12 @@ struct CaptionView: View {
     /// an hour, which is why live captions get no rim at all.
     @ViewBuilder
     private var rim: some View {
-        switch app.polish {
-        case .working:
+        switch app.activity.state {
+        case .polishing:
             IntelligenceBorder().transition(.opacity)
-        case .settling:
+        case .delivered:
             SettledBorder().transition(.opacity)
-        case .idle:
+        default:
             if announcesItself, isListening { LiveBorder().transition(.opacity) }
         }
     }
@@ -121,7 +121,7 @@ struct CaptionView: View {
     /// screen this small.
     @ViewBuilder
     private var indicator: some View {
-        if app.polish == .working {
+        if app.activity.state == .polishing {
             // A second or two with hands over the keyboard needs something to
             // look at, or the dictation reads as having failed.
             BreathingWaveform(tint: .white.opacity(0.8))

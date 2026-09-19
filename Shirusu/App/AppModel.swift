@@ -34,9 +34,11 @@ final class AppModel {
     /// The one the caption bar and the Globe key drive.
     var session: TranscriptionSession? { liveSession }
 
-    /// What the live session is doing, if anything.
+    /// Which of the two live jobs a capture is for.
     enum Purpose: Equatable { case dictation, captions }
-    private(set) var live: Purpose?
+
+    /// What the live half of the app is doing. One answer, and a checked one.
+    let activity = Activity()
 
     /// The three jobs one engine can do, and the only thing the Globe key needs
     /// to know.
@@ -152,17 +154,6 @@ final class AppModel {
             if isRambler { rambler.prepare() }
         }
     }
-
-    /// What the model is doing to what was just said.
-    enum Polish: Equatable {
-        case idle
-        case working
-        /// It landed. Held for a moment so the change is visible before the bar
-        /// goes: the whole point of the feature happens in that one beat.
-        case settling
-    }
-
-    private(set) var polish: Polish = .idle
 
     private static let modeKey = "mode"
     private static let inputKey = "inputDevice"
@@ -293,7 +284,8 @@ extension AppModel {
             self.beginCapture(.dictation)
         }
         hotkey.onRelease = { [weak self] in
-            guard let self, self.live == .dictation else { return }
+            guard let self, self.activity.state == .dictating else { return }
+            self.activity.move(to: .transcribing)
             self.liveSession?.stop()
             // A ceiling, not the plan: delivery takes the bar down as soon as
             // the words have landed. This is only here so a pass that never
@@ -305,25 +297,24 @@ extension AppModel {
     /// Hands the finished text wherever this mode says it goes.
     private func deliver(_ text: String) async {
         var text = text
-        if isRambler {
+        if isRambler, activity.move(to: .polishing) {
             // Surfaced, because it is a second or two of someone waiting with
             // their hands over the keyboard. An unexplained pause there reads
             // as the dictation having failed.
-            polish = .working
             let polished = await rambler.polish(text, profile: profiles.selected)
             if polished != text {
                 text = polished
                 // Put the result where the raw text was. Watching the filler
                 // words go is the only way to see what this feature did, and it
                 // costs nothing: the bar is still up.
-                session?.transcript.apply(confirmed: text, volatile: "")
+                liveSession?.transcript.apply(confirmed: text, volatile: "")
             }
-            polish = .settling
-            Task { [weak self] in
-                try? await Task.sleep(for: .milliseconds(900))
-                guard let self, self.polish == .settling else { return }
-                self.polish = .idle
-            }
+        }
+        activity.move(to: .delivered)
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(900))
+            guard let self, self.activity.state == .delivered else { return }
+            self.activity.move(to: .idle)
         }
 
         lastDictation = text
@@ -355,9 +346,7 @@ extension AppModel {
     /// Derived from the session rather than stored beside it. A stored flag and
     /// a session that failed to start are two answers to one question, and the
     /// switch would be left on over a caption bar showing nothing.
-    var isCaptioning: Bool {
-        live == .captions && (liveSession?.phase.isBusy ?? false)
-    }
+    var isCaptioning: Bool { activity.isCaptioning }
 
     /// Live captions run until they are switched off. No key to hold: the point
     /// is captioning a call or a video, which is not something you can hold a
@@ -387,8 +376,10 @@ extension AppModel {
 
     func beginCapture(_ purpose: Purpose) {
         guard let session = liveSession, !session.phase.isBusy else { return }
+        // The machine decides whether this is allowed at all, which is what
+        // stops a press landing on top of a delivery that has not finished.
+        guard activity.move(to: purpose == .dictation ? .dictating : .captioning) else { return }
         captureProblem = nil
-        live = purpose
 
         // Dictation is always the microphone: the point is your own voice, and
         // offering a choice there would only be a way to get it wrong. Captions
@@ -403,8 +394,10 @@ extension AppModel {
             switch source {
             case .microphone:
                 guard await MicrophoneFeed.requestAccess() else {
-                    self.captureProblem = MicrophoneError.accessDenied.localizedDescription
-                    self.live = nil
+                    let message = MicrophoneError.accessDenied.localizedDescription
+                    self.captureProblem = message
+                    self.activity.move(to: .failed(message))
+                    self.activity.move(to: .idle)
                     return
                 }
                 session.start(

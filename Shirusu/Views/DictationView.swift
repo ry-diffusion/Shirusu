@@ -64,9 +64,13 @@ struct DictationView: View {
                             Button("Edit…") { isEditing = true }
                         }
 
-                        Text(app.profiles.selected.latitude.summary)
+                        // The profile's own words, not a summary of them.
+                        // There is nothing else to say about a profile that
+                        // its instruction does not already say.
+                        Text(app.profiles.selected.direction)
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
+                            .lineLimit(3)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }

@@ -12,78 +12,19 @@ struct RewriteProfile: Identifiable, Codable, Hashable, Sendable {
     var id: UUID = UUID()
     var name: String
     /// What the model is told to do, in its own words.
+    ///
+    /// The only place a profile's behaviour is stated. There used to be a
+    /// second one: a latitude picker that told the guard how far to let the
+    /// result stray. Two settings that had to agree, when one of them was free
+    /// text, is a way to get it wrong — write "rewrite this formally" and leave
+    /// the picker on "keep my words" and the profile is refused every time.
+    /// Now the prompt carries the rule and the guard checks only the things no
+    /// prompt should be allowed to break.
     var direction: String
-    var latitude: Latitude
     /// Built-ins can be duplicated but not edited or deleted. A profile whose
     /// behaviour the app documents has to keep behaving that way.
     var isBuiltIn: Bool = false
 
-    /// How far the result is allowed to stray, and therefore how hard the guard
-    /// checks it.
-    ///
-    /// Three settings rather than three percentages: the numbers underneath are
-    /// tuning, and asking someone to pick a word-overlap floor is asking them to
-    /// debug a heuristic they cannot see.
-    enum Latitude: String, Codable, CaseIterable, Identifiable, Sendable {
-        /// Every word kept was a word that was spoken.
-        case sameWords
-        /// The wording may change; the length should not, much.
-        case reworded
-        /// The wording may change and the result should be shorter.
-        case shortened
-
-        var id: String { rawValue }
-
-        var label: String {
-            switch self {
-            case .sameWords:
-                return String(localized: "Keep my words", comment: "Rewrite latitude")
-            case .reworded:
-                return String(localized: "May reword", comment: "Rewrite latitude")
-            case .shortened:
-                return String(localized: "May reword and shorten", comment: "Rewrite latitude")
-            }
-        }
-
-        var summary: String {
-            switch self {
-            case .sameWords:
-                return String(
-                    localized: "Only removes. Anything left standing is something you said.",
-                    comment: "Rewrite latitude explanation")
-            case .reworded:
-                return String(
-                    localized: "Can choose different words for the same thing, at about the same length.",
-                    comment: "Rewrite latitude explanation")
-            case .shortened:
-                return String(
-                    localized: "Can choose different words and cut the result down.",
-                    comment: "Rewrite latitude explanation")
-            }
-        }
-
-        /// Whether the words themselves may change.
-        var allowsRewording: Bool { self != .sameWords }
-
-        /// Length the result may be, as a percentage of what was said.
-        var lengthBounds: (low: Int, high: Int) {
-            switch self {
-            case .sameWords: return (35, 118)
-            case .reworded: return (40, 175)
-            case .shortened: return (20, 110)
-            }
-        }
-
-        /// How much of the result has to be words that were actually spoken.
-        /// A rewrite is meant to change words, so this is kept above zero only
-        /// to catch a reply that is about something else entirely.
-        var overlapFloor: Int {
-            switch self {
-            case .sameWords: return 55
-            case .reworded, .shortened: return 20
-            }
-        }
-    }
 }
 
 extension RewriteProfile {
@@ -105,7 +46,6 @@ extension RewriteProfile {
                 choice of words exactly as they are. Do not make it sound \
                 better written than it was said.
                 """,
-            latitude: .sameWords,
             isBuiltIn: true
         ),
         RewriteProfile(
@@ -114,9 +54,10 @@ extension RewriteProfile {
             direction: """
                 Remove filler words and false starts. Apply corrections the \
                 speaker made out loud and delete what they replace; a \
-                correction can come much later than the thing it corrects.
+                correction can come much later than the thing it corrects. \
+                Change nothing else: every word left standing should be one \
+                the speaker said.
                 """,
-            latitude: .sameWords,
             isBuiltIn: true
         ),
         RewriteProfile(
@@ -130,7 +71,6 @@ extension RewriteProfile {
                 said it. You may drop a point they made twice, but never one \
                 they made once.
                 """,
-            latitude: .sameWords,
             isBuiltIn: true
         ),
         RewriteProfile(
@@ -140,7 +80,6 @@ extension RewriteProfile {
                 Clean it up, then rewrite it in a formal register: full \
                 sentences, no slang, polite without being stiff.
                 """,
-            latitude: .reworded,
             isBuiltIn: true
         ),
         RewriteProfile(
@@ -151,7 +90,6 @@ extension RewriteProfile {
                 conversational, the way you would write to a colleague you know \
                 well.
                 """,
-            latitude: .reworded,
             isBuiltIn: true
         ),
         RewriteProfile(
@@ -162,7 +100,6 @@ extension RewriteProfile {
                 name, number and request. Merging points the speaker repeated \
                 is required. The result must be much shorter than the input.
                 """,
-            latitude: .shortened,
             isBuiltIn: true
         ),
     ]
