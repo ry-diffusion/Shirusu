@@ -27,8 +27,12 @@ struct CaptionView: View {
     private var isListening: Bool { session?.phase.isBusy ?? false }
     private var hasText: Bool { !(session?.transcript.isEmpty ?? true) }
 
-    /// Dictation, or the file mode that borrows its behaviour.
-    private var announcesItself: Bool { app.mode != .captions }
+    /// Whether the bar should say what it is doing.
+    ///
+    /// Keyed to what is actually running rather than to the selected tab. The
+    /// Globe key works from anywhere now, so "which screen is showing" stopped
+    /// being a reliable answer to "what is this bar for".
+    private var announcesItself: Bool { app.live != .captions }
 
     /// Whether there is anything worth putting on screen.
     private var isShowing: Bool {

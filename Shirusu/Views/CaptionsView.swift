@@ -19,7 +19,7 @@ struct CaptionsView: View {
                 preview
                 toggle
             } footer: {
-                Text("The bar floats above other apps and never takes focus, so it does not interrupt what you are doing. The Globe key switches it on and off too.")
+                Text("The bar floats above other apps and never takes focus, so it does not interrupt what you are doing. It keeps running while you use the rest of the app.")
             }
 
             Section {
@@ -39,8 +39,12 @@ struct CaptionsView: View {
                     : "The room, through the microphone.")
             }
 
-            Section("Globe key") {
+            Section {
                 HotkeyBadge()
+            } header: {
+                Text("Globe key")
+            } footer: {
+                Text("The Globe key dictates, from whichever screen you are on. Live captions have this switch instead, because you cannot hold a key through a film.")
             }
         }
         .formStyle(.grouped)

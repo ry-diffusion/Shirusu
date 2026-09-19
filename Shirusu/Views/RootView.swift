@@ -19,8 +19,8 @@ struct RootView: View {
                     .transition(.opacity)
 
             case .ready:
-                if let session = app.session {
-                    Workbench(session: session)
+                if let file = app.fileSession {
+                    Workbench(fileSession: file)
                         .transition(.opacity)
                 }
             }
@@ -39,7 +39,7 @@ struct RootView: View {
 /// feature that lives outside this window. A segmented control would promise
 /// they were interchangeable.
 private struct Workbench: View {
-    var session: TranscriptionSession
+    var fileSession: TranscriptionSession
 
     @Environment(AppModel.self) private var app
 
@@ -49,8 +49,20 @@ private struct Workbench: View {
         NavigationSplitView {
             List(selection: $app.mode) {
                 ForEach(AppModel.Mode.allCases) { mode in
-                    Label(mode.label, systemImage: mode.symbol)
-                        .tag(mode)
+                    HStack {
+                        Label(mode.label, systemImage: mode.symbol)
+                        // Captions keep running when you navigate away, so the
+                        // row has to say they are running. A microphone you
+                        // have forgotten about is the thing to avoid here.
+                        if mode == .captions, app.isCaptioning {
+                            Spacer()
+                            Circle()
+                                .fill(Ink.accent)
+                                .frame(width: 6, height: 6)
+                                .accessibilityLabel(Text("Running"))
+                        }
+                    }
+                    .tag(mode)
                 }
             }
             .navigationSplitViewColumnWidth(min: 176, ideal: 188, max: 240)
@@ -68,7 +80,7 @@ private struct Workbench: View {
     private var detail: some View {
         switch app.mode {
         case .transcribe:
-            TranscribeView(session: session)
+            TranscribeView(session: fileSession)
         case .captions:
             CaptionsView()
         case .dictation:

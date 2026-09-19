@@ -77,7 +77,10 @@ final class TranscriptionSession {
 
     private let models: AsrModels
     private let capture = UtteranceBuffer()
-    private let engine = BatchTranscriber()
+    /// Shared, not owned. The CoreML weights are most of a gigabyte, so the
+    /// file screen and the live screens get their own transcript and their own
+    /// buffer but decode through the same actor.
+    private let engine: BatchTranscriber
     private var run: Task<Void, Never>?
     private var rolling: Task<Void, Never>?
     /// Set by `stop()`. The feed loop breaks on it and then finalises, which is
@@ -90,8 +93,13 @@ final class TranscriptionSession {
     private var lastAudibleAt: ContinuousClock.Instant?
     private let log = Logger(subsystem: "br.com.zesmoi.Shirusu", category: "session")
 
-    init(models: AsrModels, profile: ShirusuModel.Profile = .pushToTalk) {
+    init(
+        models: AsrModels,
+        engine: BatchTranscriber = BatchTranscriber(),
+        profile: ShirusuModel.Profile = .pushToTalk
+    ) {
         self.models = models
+        self.engine = engine
         // Vestigial: the sliding-window path it selected is gone, and the
         // tests still pass one. Accepted and ignored rather than churn them.
         _ = profile

@@ -21,7 +21,22 @@ final class AppModel {
     private(set) var setupFraction: Double = 0
     /// Whether this run is the one that has to fetch the models.
     private(set) var isFirstInstall = false
-    private(set) var session: TranscriptionSession?
+    /// Two transcripts, one engine.
+    ///
+    /// They were one session, and that is why the Globe key only worked on the
+    /// Dictation screen: a press anywhere else would have reset the transcript
+    /// of the file you were reading. Separating them costs a `Transcript` and a
+    /// buffer, not a second copy of the model, so the key now works wherever
+    /// you happen to be looking.
+    private(set) var liveSession: TranscriptionSession?
+    private(set) var fileSession: TranscriptionSession?
+
+    /// The one the caption bar and the Globe key drive.
+    var session: TranscriptionSession? { liveSession }
+
+    /// What the live session is doing, if anything.
+    enum Purpose: Equatable { case dictation, captions }
+    private(set) var live: Purpose?
 
     /// The three jobs one engine can do, and the only thing the Globe key needs
     /// to know.
@@ -102,13 +117,10 @@ final class AppModel {
     var mode: Mode = AppModel.storedMode {
         didSet {
             UserDefaults.standard.set(mode.rawValue, forKey: AppModel.modeKey)
-            if mode == .dictation, isRambler { rambler.prepare() }
-            guard oldValue != mode, oldValue.isLive else { return }
-            // Leaving a live mode stops what it had running. Captions still
-            // transcribing from a screen you navigated away from is a
-            // microphone you have forgotten about.
-            session?.stop()
-            captions.hide()
+            if isRambler { rambler.prepare() }
+            // Nothing is stopped here on purpose. The sidebar chooses what you
+            // are looking at, not what the app is doing: captions left on stay
+            // on while you read a transcript, and the sidebar row says so.
         }
     }
 
@@ -206,16 +218,6 @@ final class AppModel {
     /// Surfaced so the UI can explain a refusal instead of going quiet.
     private(set) var captureProblem: String?
 
-    /// What the next press will actually listen to.
-    ///
-    /// Captions can read either the room or what the Mac is playing, which is
-    /// how you caption a call. Dictation is always the microphone: the point is
-    /// your own voice, and offering a choice there would only be a way to get
-    /// it wrong.
-    var activeSource: CaptureSource {
-        mode == .dictation ? .microphone : captureSource
-    }
-
     let hotkey = GlobeHotkeyMonitor()
     let captions = CaptionPanel()
     private let log = Logger(subsystem: "br.com.zesmoi.Shirusu", category: "app")
@@ -239,16 +241,20 @@ final class AppModel {
                     self.setupFraction = max(self.setupFraction, fraction)
                 }
             }
-            let session = TranscriptionSession(models: models, profile: .pushToTalk)
-            session.onFinish = { [weak self] text in
-                guard let self, self.mode == .dictation else { return }
-                Task { await self.deliver(text) }
+            // One engine behind both, so the weights load once.
+            let engine = BatchTranscriber()
+            let live = TranscriptionSession(models: models, engine: engine)
+            // Only an utterance run finishes, and only dictation makes one:
+            // captions run continuously and never take a release pass.
+            live.onFinish = { [weak self] text in
+                Task { await self?.deliver(text) }
             }
-            self.session = session
+            self.liveSession = live
+            self.fileSession = TranscriptionSession(models: models, engine: engine)
             stage = .ready
             // Warm the release pass in the background: the window is already
             // usable, and the first press should not pay for it.
-            Task { await session.prepare() }
+            Task { await live.prepare() }
             if isRambler { rambler.prepare() }
             bindHotkey()
             // Arm it without asking: if Accessibility was already granted this
@@ -280,24 +286,15 @@ extension AppModel {
     func bindHotkey() {
         hotkey.onPress = { [weak self] in
             guard let self else { return }
-            switch self.mode {
-            case .transcribe:
-                return
-            case .captions:
-                // Captions run on their own, so the key is a switch rather than
-                // something to hold. Holding a key through a film is not a way
-                // to watch a film.
-                self.toggleLiveCaptions()
-            case .dictation:
-                // The caption is the whole interface here; the main window may
-                // not even be open.
-                self.showCaptions()
-                self.beginCapture()
-            }
+            // Always dictation, from wherever you are. Live captions have their
+            // own switch, which is what they asked for: you cannot hold a key
+            // through a film.
+            self.showCaptions()
+            self.beginCapture(.dictation)
         }
         hotkey.onRelease = { [weak self] in
-            guard let self, self.mode == .dictation else { return }
-            self.session?.stop()
+            guard let self, self.live == .dictation else { return }
+            self.liveSession?.stop()
             // A ceiling, not the plan: delivery takes the bar down as soon as
             // the words have landed. This is only here so a pass that never
             // finishes does not leave the bar up for good.
@@ -359,20 +356,19 @@ extension AppModel {
     /// a session that failed to start are two answers to one question, and the
     /// switch would be left on over a caption bar showing nothing.
     var isCaptioning: Bool {
-        mode == .captions && (session?.phase.isBusy ?? false)
+        live == .captions && (liveSession?.phase.isBusy ?? false)
     }
 
     /// Live captions run until they are switched off. No key to hold: the point
     /// is captioning a call or a video, which is not something you can hold a
     /// key through.
     func toggleLiveCaptions() {
-        guard mode == .captions else { return }
         if isCaptioning {
             session?.stop()
             captions.hide(after: 2)
         } else {
             showCaptions()
-            beginCapture(intent: .continuous)
+            beginCapture(.captions)
         }
     }
 
@@ -389,17 +385,26 @@ extension AppModel {
         hotkey.enable()
     }
 
-    func beginCapture(intent: TranscriptionSession.Intent = .utterance) {
-        guard let session, !session.phase.isBusy else { return }
-        guard mode.isLive else { return }
+    func beginCapture(_ purpose: Purpose) {
+        guard let session = liveSession, !session.phase.isBusy else { return }
         captureProblem = nil
+        live = purpose
+
+        // Dictation is always the microphone: the point is your own voice, and
+        // offering a choice there would only be a way to get it wrong. Captions
+        // read either the room or what the Mac is playing, which is how you
+        // caption a call.
+        let source: CaptureSource = purpose == .dictation ? .microphone : captureSource
+        let intent: TranscriptionSession.Intent =
+            purpose == .dictation ? .utterance : .continuous
 
         Task { [weak self] in
             guard let self else { return }
-            switch self.activeSource {
+            switch source {
             case .microphone:
                 guard await MicrophoneFeed.requestAccess() else {
                     self.captureProblem = MicrophoneError.accessDenied.localizedDescription
+                    self.live = nil
                     return
                 }
                 session.start(
@@ -415,7 +420,7 @@ extension AppModel {
     }
 
     func endCapture() {
-        session?.stop()
+        liveSession?.stop()
     }
 
     func clearCaptureProblem() {

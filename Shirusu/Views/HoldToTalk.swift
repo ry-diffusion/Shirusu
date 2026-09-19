@@ -3,9 +3,8 @@ import SwiftUI
 /// Push-to-talk in the window, for when the Globe key is not an option.
 ///
 /// The key needs Accessibility permission, and permission is exactly the thing
-/// a new user has not granted yet. Without this, both live modes are a screen
-/// explaining a feature you cannot try. It is also the honest way to test the
-/// caption bar: same session, same capture, same panel.
+/// a new user has not granted yet. Without this, dictation is a screen
+/// explaining a feature you cannot try.
 ///
 /// It captures on press rather than on click, because that is what a
 /// hold-to-talk control is. Waiting for the release would mean the first word
@@ -50,13 +49,13 @@ struct HoldToTalk: View {
                     guard !isHeld else { return }
                     isHeld = true
                     app.showCaptions()
-                    app.beginCapture()
+                    app.beginCapture(.dictation)
                 }
                 .onEnded { _ in
                     guard isHeld else { return }
                     isHeld = false
                     app.session?.stop()
-                    app.captions.hide(after: app.mode == .dictation ? 2 : 6)
+                    app.captions.hide(after: app.isRambler ? 12 : 2)
                 }
         )
         .accessibilityLabel(Text("Hold to talk"))

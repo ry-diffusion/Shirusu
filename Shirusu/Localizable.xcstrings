@@ -967,6 +967,16 @@
         }
       }
     },
+    "Running": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ativo"
+          }
+        }
+      }
+    },
     "Running…": {
       "localizations": {
         "pt-BR": {
@@ -1133,12 +1143,22 @@
         }
       }
     },
-    "The bar floats above other apps and never takes focus, so it does not interrupt what you are doing. The Globe key switches it on and off too.": {
+    "The Globe key dictates, from whichever screen you are on. Live captions have this switch instead, because you cannot hold a key through a film.": {
       "localizations": {
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "A barra flutua sobre os outros apps e nunca rouba o foco, então não interrompe o que você está fazendo. A tecla Globo também liga e desliga."
+            "value": "A tecla Globo dita, de qualquer tela em que você esteja. As legendas ao vivo têm este interruptor, porque não dá para segurar uma tecla durante um filme."
+          }
+        }
+      }
+    },
+    "The bar floats above other apps and never takes focus, so it does not interrupt what you are doing. It keeps running while you use the rest of the app.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A barra flutua sobre os outros apps e nunca rouba o foco, então não interrompe o que você está fazendo. Ela continua rodando enquanto você usa o resto do app."
           }
         }
       }
