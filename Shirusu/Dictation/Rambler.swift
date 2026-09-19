@@ -54,6 +54,7 @@ final class Rambler {
 
     @ObservationIgnored private let model = SystemLanguageModel.default
     @ObservationIgnored private var warm: LanguageModelSession?
+    @ObservationIgnored private var warmed: UUID?
     @ObservationIgnored private let log = Logger(
         subsystem: "br.com.zesmoi.Shirusu", category: "rambler")
 
@@ -71,12 +72,21 @@ final class Rambler {
 
     /// Loads the model before the first press needs it. Cold, the first
     /// response pays for the load on top of its own generation.
-    func prepare() {
-        guard warm == nil, model.isAvailable else { return }
+    /// Loads the model before the first press needs it. Cold, the first
+    /// response pays for the load on top of its own generation: measured at
+    /// 3.8 s to the first token against 1.1 s warm.
+    ///
+    /// Built from the profile that is actually selected. There is a prompt
+    /// cache and `prewarm` fills it, but it does not carry from one session to
+    /// the next, and this app builds a session per dictation. So warming with
+    /// some other profile's instructions would load the model and nothing else.
+    func prepare(for profile: RewriteProfile) {
+        guard model.isAvailable, warmed != profile.id else { return }
         let session = LanguageModelSession(
-            model: model, instructions: Self.instructions(for: RewriteProfile.default))
+            model: model, instructions: Self.instructions(for: profile))
         session.prewarm()
         warm = session
+        warmed = profile.id
     }
 
     /// Below this there is nothing to tidy that is worth a second of waiting.
@@ -136,7 +146,7 @@ final class Rambler {
         // into this one.
         let session = LanguageModelSession(
             model: model, instructions: Self.instructions(for: profile))
-        defer { prepare() }
+        defer { prepare(for: profile) }
 
         let started = ContinuousClock.now
         do {

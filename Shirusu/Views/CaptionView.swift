@@ -122,9 +122,15 @@ struct CaptionView: View {
     @ViewBuilder
     private var indicator: some View {
         if app.activity.state == .polishing {
-            // A second or two with hands over the keyboard needs something to
-            // look at, or the dictation reads as having failed.
-            BreathingWaveform(tint: .white.opacity(0.8))
+            // Not the waveform. That mark means "audio is being worked on", and
+            // it is used for exactly that on the first-run screen and while a
+            // file is being read. By this point the audio is long finished and
+            // a language model is rewriting text, which is a different thing
+            // and reads as the app being stuck on the wrong step.
+            //
+            // Sparkles because the system uses it for this, and because the rim
+            // behind it is already wearing the same idea.
+            IntelligenceMark()
         } else if !isListening {
             Image(systemName: "text.bubble")
                 .font(.system(size: 13, weight: .medium))
@@ -291,6 +297,20 @@ private struct IntelligenceBorder: View {
                     angle = 360
                 }
             }
+            .accessibilityHidden(true)
+    }
+}
+
+/// The mark for "a model is working on your words".
+private struct IntelligenceMark: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Image(systemName: "sparkles")
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(.white.opacity(0.9))
+            .symbolEffect(
+                .variableColor.iterative, options: reduceMotion ? .nonRepeating : .repeating)
             .accessibilityHidden(true)
     }
 }

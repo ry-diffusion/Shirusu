@@ -159,7 +159,7 @@ final class AppModel {
     var isRambler: Bool = UserDefaults.standard.bool(forKey: AppModel.ramblerKey) {
         didSet {
             UserDefaults.standard.set(isRambler, forKey: AppModel.ramblerKey)
-            if isRambler { rambler.prepare() }
+            if isRambler { rambler.prepare(for: profiles.selected) }
         }
     }
 
@@ -253,6 +253,8 @@ final class AppModel {
             activity.onStuck = { [weak self] _ in
                 guard let self else { return }
                 self.rambler.note(.timedOut, profile: self.profiles.selected)
+                // Nothing else is going to take it down now.
+                self.captions.hide(after: 0.6)
             }
             self.liveSession = live
             self.fileSession = TranscriptionSession(models: models, engine: engine)
@@ -272,7 +274,7 @@ final class AppModel {
                 try? await Task.sleep(for: .milliseconds(700))
                 await live.prepare()
                 guard let self else { return }
-                self.rambler.prepare()
+                self.rambler.prepare(for: self.profiles.selected)
                 // The window the caption lives in, built but not shown.
                 self.captions.prepare(CaptionView().environment(self))
             }
@@ -324,10 +326,12 @@ extension AppModel {
             }
             self.activity.move(to: .transcribing)
             session.stop()
-            // A ceiling, not the plan: delivery takes the bar down as soon as
-            // the words have landed. This is only here so a pass that never
-            // finishes does not leave the bar up for good.
-            self.captions.hide(after: self.isRambler ? 12 : 2)
+            // No timer when a rewrite is coming. A profile that writes a page
+            // from one sentence takes half a minute, measured, and a bar that
+            // vanishes on a guess while the work is still running is the app
+            // looking finished when it is not. Delivery takes it down when the
+            // words actually land, and the stuck watchdog is the backstop.
+            if !self.isRambler { self.captions.hide(after: 2) }
         }
     }
 
