@@ -171,6 +171,17 @@
         }
       }
     },
+    "Came back unchanged, so the profile's instruction was not followed.": {
+      "comment": "Why a rewrite was not used",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voltou sem alteração, então a instrução do perfil não foi seguida."
+          }
+        }
+      }
+    },
     "Captions appear here while this is on": {
       "localizations": {
         "pt-BR": {
@@ -455,6 +466,16 @@
         }
       }
     },
+    "For a profile that expands, translates or turns dictation into something else. The checks that keep a result recognisable as what you said are turned off, because a profile like that fails all of them by working correctly.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para um perfil que expande, traduz ou transforma o ditado em outra coisa. As checagens que mantêm o resultado reconhecível como o que você falou são desligadas, porque um perfil assim reprova em todas elas justamente por funcionar."
+          }
+        }
+      }
+    },
     "Formal": {
       "comment": "Built-in profile name",
       "localizations": {
@@ -462,6 +483,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Formal"
+          }
+        }
+      }
+    },
+    "Formal, for a client": {
+      "comment": "Built-in profile name",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Formal, para cliente"
           }
         }
       }
@@ -899,6 +931,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mostrar app"
+          }
+        }
+      }
+    },
+    "Rewrites into something new": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reescreve em algo novo"
           }
         }
       }

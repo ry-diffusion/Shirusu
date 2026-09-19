@@ -194,6 +194,18 @@ private struct ProfileWorkbench: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle(isOn: binding(for: profile, \.isTransform)) {
+                    Text("Rewrites into something new")
+                }
+                .toggleStyle(.checkbox)
+                .disabled(locked)
+                Text("For a profile that expands, translates or turns dictation into something else. The checks that keep a result recognisable as what you said are turned off, because a profile like that fails all of them by working correctly.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             if locked {
                 Label("Built in, so it cannot be edited. Duplicate it to make a version you can change.", systemImage: "lock")
                     .font(.system(size: 10))

@@ -21,6 +21,20 @@ struct RewriteProfile: Identifiable, Codable, Hashable, Sendable {
     /// Now the prompt carries the rule and the guard checks only the things no
     /// prompt should be allowed to break.
     var direction: String
+
+    /// Whether the result is meant to be a version of what was said at all.
+    ///
+    /// Off, the checks hold: same language, same figures, recognisably the same
+    /// utterance. On, they are turned off, because a profile that expands a
+    /// spoken request into a page of English fails every one of them by doing
+    /// its job correctly.
+    ///
+    /// This is not the latitude setting coming back. That one asked how *much*
+    /// the model could change, which the direction already says. This asks
+    /// something the direction cannot tell code: whether the output is supposed
+    /// to resemble the input. There is no way to infer it from free text, and
+    /// getting it wrong in either direction is worse than asking.
+    var isTransform: Bool = false
     /// Built-ins can be duplicated but not edited or deleted. A profile whose
     /// behaviour the app documents has to keep behaving that way.
     var isBuiltIn: Bool = false
@@ -41,7 +55,9 @@ extension RewriteProfile {
             direction: """
                 Remove the parts that are not information: filler words, \
                 stammers, false starts, and anything the speaker replaced by \
-                correcting themselves out loud. Keep everything that is \
+                correcting themselves out loud, so that "manda pro Pedro, \
+                não, pro João" keeps only João. The correction marker is often \
+                nothing more than "não", "desculpa", "quer dizer" or "peraí". Keep everything that is \
                 information, and keep the speaker's own voice, register and \
                 choice of words exactly as they are. Do not make it sound \
                 better written than it was said.
@@ -53,10 +69,13 @@ extension RewriteProfile {
             name: String(localized: "Balanced", comment: "Built-in profile name"),
             direction: """
                 Remove filler words and false starts. Apply corrections the \
-                speaker made out loud and delete what they replace; a \
-                correction can come much later than the thing it corrects. \
-                Change nothing else: every word left standing should be one \
-                the speaker said.
+                speaker made out loud and delete what they replace, so that \
+                "manda pro Pedro, não, pro João" keeps only João and drops \
+                Pedro along with the "não". The marker is often nothing more \
+                than "não", "desculpa", "quer dizer", "peraí" or their \
+                equivalent, and the correction can come much later than the \
+                thing it corrects. Change nothing else: every word left \
+                standing should be one the speaker said.
                 """,
             isBuiltIn: true
         ),
@@ -65,7 +84,10 @@ extension RewriteProfile {
             name: String(localized: "Aggressive", comment: "Built-in profile name"),
             direction: """
                 Remove filler words and false starts. Apply corrections the \
-                speaker made out loud and delete what they replace. Then write \
+                speaker made out loud and delete what they replace, so that \
+                "manda pro Pedro, não, pro João" keeps only João and drops \
+                Pedro along with the "não"; the marker is often nothing more \
+                than "não", "desculpa", "quer dizer" or "peraí". Then write \
                 what is left as clean, direct sentences, in the order that \
                 reads best, as though the person had written it rather than \
                 said it. You may drop a point they made twice, but never one \
@@ -79,6 +101,20 @@ extension RewriteProfile {
             direction: """
                 Clean it up, then rewrite it in a formal register: full \
                 sentences, no slang, polite without being stiff.
+                """,
+            isBuiltIn: true
+        ),
+        RewriteProfile(
+            id: UUID(uuidString: "00000000-0000-0000-0000-00F0E3A1E47A")!,
+            name: String(localized: "Formal, for a client", comment: "Built-in profile name"),
+            direction: """
+                Rewrite it completely for a client: every sentence rebuilt so \
+                it reads as though written for a client from the start, not a \
+                politer choice of words. Drop vocatives and slang entirely, \
+                and their equivalents in any language. Full sentences, formal \
+                business register, nothing colloquial. Never harden a hedge \
+                into a commitment: an estimate stays an estimate, and anything \
+                the speaker qualified stays qualified.
                 """,
             isBuiltIn: true
         ),
