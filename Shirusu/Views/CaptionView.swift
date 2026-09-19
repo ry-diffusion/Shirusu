@@ -2,9 +2,7 @@ import SwiftUI
 
 /// A one-line caption bar that floats over whatever you are doing.
 ///
-/// A capsule on Liquid Glass — Apple's own material, not a hand-rolled blur — so
-/// it takes on whatever is behind it and stays legible over a bright document or
-/// a dark editor alike.
+/// Caption content laid over the panel's Liquid Glass surface.
 ///
 /// The same bar serves two modes that want opposite things from it. Dictation is
 /// a key you are holding down right now, so the bar confirms it: it says
@@ -60,15 +58,6 @@ struct CaptionView: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
-        // The material goes behind the content rather than over it, so the
-        // plate can be thinned without taking the text down with it. `.clear`
-        // is already the most transparent variant; this is the rest of the way.
-        .background {
-            Color.clear
-                .glassEffect(.clear, in: .capsule)
-                .opacity(0.78)
-        }
-        .overlay { rim }
         .animation(Motion.settle, value: isListening)
         .animation(Motion.settle, value: app.activity.state)
         .animation(reduceMotion ? nil : Motion.glide, value: slot)
@@ -76,6 +65,9 @@ struct CaptionView: View {
         // Centred in a window that is larger than the plate ever gets, so the
         // plate is free to find its own width without the window moving.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The panel supplies the glass, so its state rim belongs to the full
+        // panel boundary rather than to a second, small capsule around text.
+        .overlay { rim }
     }
 
     /// Which rim, if any.
@@ -114,7 +106,7 @@ struct CaptionView: View {
     private static let minimum: CGFloat = 170
     /// Past this the plate stops widening and the line pans inside it instead.
     /// A caption that keeps growing to fit eventually stops being a caption.
-    private static let maximum: CGFloat = 460
+    private static let maximum: CGFloat = 340
 
     /// Only shown at rest. While listening the border says it, and a second
     /// indicator saying the same thing is one element too many on a strip of
@@ -172,11 +164,11 @@ private struct CaptionLine: View {
     /// Characters the plate can hold at its widest.
     ///
     /// Measured against `CaptionView.maximum`: at 14pt medium a character
-    /// averages 7.4 points and each word gap costs 7, so 58 characters lands
-    /// around 425 points with room to spare for a line of wide glyphs. Trimming
+    /// averages 7.4 points and each word gap costs 7, so 44 characters lands
+    /// around 325 points with room to spare for the indicator and padding. Trimming
     /// in characters rather than in points keeps the decision in the transcript,
     /// where the punctuation is.
-    private static let budget = 58
+    private static let budget = 44
 
     /// How far the sentence has outgrown the plate.
     ///

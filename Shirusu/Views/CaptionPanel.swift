@@ -28,15 +28,12 @@ final class CaptionPanel {
     func prepare(_ content: some View) {
         guard panel == nil else { return }
         let panel = makePanel()
-        let host = NSHostingView(rootView: AnyView(content))
-        host.layer?.backgroundColor = nil
-        host.sizingOptions = []
-        panel.contentView = host
+        panel.contentView = glassContent(for: content)
         panel.setFrame(Self.frame, display: false)
         // Laid out, so the first real show is not the first layout, but never
         // ordered front: `alphaValue` is left at zero until `show` raises it.
         panel.alphaValue = 0
-        host.layoutSubtreeIfNeeded()
+        panel.contentView?.layoutSubtreeIfNeeded()
         self.panel = panel
     }
 
@@ -46,17 +43,9 @@ final class CaptionPanel {
 
         let panel = self.panel ?? makePanel()
         self.panel = panel
-        let host = NSHostingView(rootView: AnyView(content))
-        // Without this the hosting view paints an opaque backing and the glass
-        // has nothing to be transparent against.
-        host.layer?.backgroundColor = nil
-        // And without this it can drive the window's size from the content,
-        // which is how an 800-point bar ended up wider than the screen.
-        host.sizingOptions = []
-
         let wasVisible = panel.isVisible
         panel.alphaValue = 1
-        panel.contentView = host
+        panel.contentView = glassContent(for: content)
         // Always, not only on first show: the screen can change under it.
         panel.setFrame(Self.frame, display: false)
 
@@ -82,6 +71,23 @@ final class CaptionPanel {
             panel.animator().alphaValue = 1
             panel.animator().setFrame(destination, display: true)
         }
+    }
+
+    /// Gives the whole nonactivating panel a native Liquid Glass backing.
+    /// `CaptionView` still owns the close-fitting capsule and its state rim;
+    /// this outer glass is the surface visible behind it and refracts the app
+    /// below instead of leaving a transparent rectangular window around it.
+    private func glassContent(for content: some View) -> NSGlassEffectView {
+        let host = NSHostingView(rootView: AnyView(content))
+        // A hosting view that paints its own backing would hide the glass.
+        host.layer?.backgroundColor = nil
+        host.sizingOptions = []
+
+        let glass = NSGlassEffectView(frame: NSRect(origin: .zero, size: Self.frame.size))
+        glass.style = .regular
+        glass.cornerRadius = Self.height / 2
+        glass.contentView = host
+        return glass
     }
 
     func hide() {
@@ -150,11 +156,9 @@ final class CaptionPanel {
 
     /// A bound, not a size.
     ///
-    /// The window itself is invisible and never moves; the capsule inside it is
-    /// the only thing seen, and that one is sized to the sentence. This just
-    /// has to be wider than the capsule can ever get, so that finding its width
-    /// is never a reason for the window to find a new position.
-    private static let width: CGFloat = 520
+    /// The glass panel is deliberately wider than the caption itself, so its
+    /// position stays fixed while words land and the inner capsule resizes.
+    private static let width: CGFloat = 400
     /// One line of caption plus its padding.
     private static let height: CGFloat = 56
 
