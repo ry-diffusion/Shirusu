@@ -100,6 +100,10 @@ final class TranscriptionSession {
     private var lastPreview = ""
     /// When a chunk last carried something louder than room tone.
     private var lastAudibleAt: ContinuousClock.Instant?
+    /// The minimum time between preview passes for continuous captions. It is
+    /// intentionally separate from dictation: holding the Globe key should
+    /// remain as responsive as the hardware allows.
+    private var continuousUpdateInterval = TranscriptionSession.normalContinuousUpdateInterval
     private let log = Logger(subsystem: "br.com.zesmoi.Shirusu", category: "session")
 
     init(
@@ -245,10 +249,20 @@ final class TranscriptionSession {
                         + Double(elapsed.components.attoseconds) / 1e18
                 }
 
-                let wait = max(Self.minimumInterval, cost)
+                let requestedInterval = self.intent == .continuous
+                    ? self.continuousUpdateInterval
+                    : Self.minimumInterval
+                let wait = max(requestedInterval, cost)
                 try? await Task.sleep(for: .seconds(wait))
             }
         }
+    }
+
+    /// Changes how frequently the caption model is asked for a new preview.
+    /// A pass can never run faster than the model can finish, and the lower
+    /// bound avoids repeatedly scheduling zero-cost work.
+    func setContinuousUpdateInterval(_ interval: Double) {
+        continuousUpdateInterval = max(Self.minimumInterval, interval)
     }
 
     private func noteSpeech() {
@@ -298,6 +312,10 @@ final class TranscriptionSession {
     }
 
     private static let minimumInterval: Double = 0.12
+
+    /// The everyday balance between a responsive bar and the energy used to
+    /// repeatedly transcribe a video or call that may last for hours.
+    private static let normalContinuousUpdateInterval: Double = 0.6
 
     /// How much of the tail the preview re-reads. Twelve seconds costs about
     /// 130 ms a pass and is far more than the caption shows.

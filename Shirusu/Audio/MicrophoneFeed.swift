@@ -42,7 +42,32 @@ nonisolated final class MicrophoneFeed: AudioFeed, @unchecked Sendable {
 
         guard wanted != boundDevice else {
             current.reset()
-            return (current, boundFormat)
+            guard let wanted else { return (current, nil) }
+
+            // Bluetooth devices keep their AudioDeviceID when they reconnect,
+            // but often reopen their microphone at a different rate (AirPods
+            // switch between 44.1 and 24 kHz). `boundFormat` describes the
+            // previous connection, not necessarily the device we have now.
+            // Set both the hardware and the client side again before the tap
+            // is installed; otherwise AVAudioEngine starts with a stale client
+            // format and fails with -10868.
+            if let refreshed = bind(current, to: wanted) {
+                boundFormat = refreshed
+                return (current, refreshed)
+            }
+
+            // A disconnected AUHAL can reject rebinding even after reset. One
+            // fresh engine is the safe recovery, still scoped to this device
+            // rather than constructing an engine for every normal press.
+            current = AVAudioEngine()
+            boundFormat = bind(current, to: wanted)
+            if boundFormat != nil { return (current, boundFormat) }
+
+            Logger(subsystem: "br.com.zesmoi.Shirusu", category: "mic").error(
+                "Could not reopen \(device?.name ?? "that input", privacy: .public); falling back to the system default input")
+            current = AVAudioEngine()
+            boundDevice = nil
+            return (current, nil)
         }
 
         // The old one goes before the new one asks the HAL for a thread.

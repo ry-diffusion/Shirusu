@@ -82,22 +82,6 @@ enum Motion {
     static let settle = Animation.spring(duration: 0.38, bounce: 0)
     /// A word arriving in the transcript. Slightly quicker so text keeps up with speech.
     static let arrive = Animation.spring(duration: 0.28, bounce: 0)
-    /// A word arriving in the caption. A fade and nothing else.
-    ///
-    /// The caption sits off to the side of whatever the person is actually
-    /// doing, and the plate under the word is already resizing while the line
-    /// is already panning. A third motion on top of those two reads as a
-    /// flinch rather than as text appearing, which is why the blur and the
-    /// slide that used to be here are gone.
-    static let caption = Animation.easeOut(duration: 0.3)
-
-    /// The caption plate resizing, and the line panning inside it.
-    ///
-    /// Long and critically damped, so it is never seen to start or to stop.
-    /// While someone is talking this is re-aimed every word, and a spring
-    /// re-aimed in flight keeps its velocity — so what could have been a
-    /// series of little steps stays one slow drift.
-    static let glide = Animation.smooth(duration: 0.6)
     /// Reserved for direct manipulation (drag release, flick).
     static let momentum = Animation.spring(duration: 0.4, bounce: 0.18)
 }

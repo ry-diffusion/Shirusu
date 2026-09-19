@@ -43,34 +43,42 @@ final class CaptionPanel {
 
         let panel = self.panel ?? makePanel()
         self.panel = panel
-        let wasVisible = panel.isVisible
-        panel.alphaValue = 1
         panel.contentView = glassContent(for: content)
         // Always, not only on first show: the screen can change under it.
         panel.setFrame(Self.frame, display: false)
+        // The hosting view must be in a window to observe transcript changes,
+        // but an empty Live Captions run should not leave a glass bar onscreen.
+        // Keep it ordered at zero alpha until CaptionView reports content.
+        panel.alphaValue = 0
+        panel.orderFrontRegardless()
+        isVisible = false
+    }
 
-        // Ordering front without activating: the caption appears, the caret
-        // stays where the user left it.
-        isVisible = true
+    /// Called by CaptionView whenever its content becomes meaningful or empty.
+    /// This is intentionally at the panel level: hiding the SwiftUI child alone
+    /// leaves the panel's own Liquid Glass surface visible.
+    func setContentVisible(_ visible: Bool) {
+        guard let panel else { return }
 
-        guard !wasVisible else {
+        if visible {
+            guard !isVisible else { return }
+            isVisible = true
+            let destination = Self.frame
+            panel.setFrame(destination.offsetBy(dx: 0, dy: -14), display: false)
+            panel.alphaValue = 0
             panel.orderFrontRegardless()
+
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = Self.duration
+                context.timingFunction = Self.settle
+                panel.animator().alphaValue = 1
+                panel.animator().setFrame(destination, display: true)
+            }
             return
         }
 
-        // Rises into place from just below, which is where it will sink back to.
-        let destination = Self.frame
-        panel.setFrame(destination, display: false)
-        panel.setFrame(destination.offsetBy(dx: 0, dy: -14), display: false)
-        panel.alphaValue = 0
-        panel.orderFrontRegardless()
-
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = Self.duration
-            context.timingFunction = Self.settle
-            panel.animator().alphaValue = 1
-            panel.animator().setFrame(destination, display: true)
-        }
+        guard isVisible else { return }
+        dismiss()
     }
 
     /// Gives the whole nonactivating panel a native Liquid Glass backing.
@@ -98,7 +106,7 @@ final class CaptionPanel {
 
     /// Leaves the way it arrived: sinking and fading, not blinking out.
     private func dismiss() {
-        guard let panel, panel.isVisible else {
+        guard let panel else {
             isVisible = false
             return
         }

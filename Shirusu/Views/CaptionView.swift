@@ -17,6 +17,9 @@ struct CaptionView: View {
     /// that did the same would be an empty box on a settings screen, so it
     /// keeps a placeholder and stays put.
     var isPreview = false
+    /// The AppKit panel owns the glass, so it needs the same answer as this
+    /// view about whether there is something worth putting on screen.
+    var onVisibilityChange: @MainActor (Bool) -> Void = { _ in }
 
     @Environment(AppModel.self) private var app
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -49,6 +52,9 @@ struct CaptionView: View {
             // swallows a drag for no reason.
             .allowsHitTesting(isShowing)
             .animation(reduceMotion ? .easeOut(duration: 0.22) : Motion.settle, value: isShowing)
+            .onChange(of: isShowing, initial: true) { _, showing in
+                onVisibilityChange(showing)
+            }
     }
 
     private var plate: some View {
@@ -60,7 +66,6 @@ struct CaptionView: View {
         .padding(.vertical, 10)
         .animation(Motion.settle, value: isListening)
         .animation(Motion.settle, value: app.activity.state)
-        .animation(reduceMotion ? nil : Motion.glide, value: slot)
         .padding(6)
         // Centred in a window that is larger than the plate ever gets, so the
         // plate is free to find its own width without the window moving.
@@ -157,8 +162,6 @@ private struct CaptionLine: View {
     /// What the plate settled on. Never wider than `CaptionView.maximum`.
     var slot: CGFloat
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     private var sentence: [Transcript.Word] { transcript.caption(budget: Self.budget) }
 
     /// Characters the plate can hold at its widest.
@@ -189,17 +192,16 @@ private struct CaptionLine: View {
                     // Small type wants a touch of positive tracking; large
                     // display type wants the opposite.
                     .tracking(0.15)
-                    // White on the dark plate, always. The main window tints
-                    // in-flight words with the accent, but a caption is read at
-                    // a glance and a second hue there costs contrast to signal
-                    // something the reader cannot act on. Opacity carries
-                    // "not final yet" without touching legibility.
-                    .foregroundStyle(.white.opacity(word.isSettled ? 1 : 0.62))
+                    // White on the dark plate, always. Recognition regularly
+                    // changes a trailing word from provisional to confirmed;
+                    // varying its opacity made the entire line look as if it
+                    // blinked while someone spoke. A floating caption is read
+                    // at a glance, so that implementation detail is not worth
+                    // spending contrast or stability on.
+                    .foregroundStyle(.white.opacity(0.92))
                     .fixedSize()
-                    .transition(.opacity)
             }
         }
-        .animation(reduceMotion ? nil : Motion.caption, value: sentence)
         // Laid out at its natural width and then moved as one piece, rather
         // than re-flowed. A line that re-flows settles each word separately,
         // which is the wobble; a line that translates keeps its spacing.
@@ -207,7 +209,6 @@ private struct CaptionLine: View {
         .geometryGroup()
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { natural = $0 }
         .offset(x: -overflow)
-        .animation(reduceMotion ? nil : Motion.glide, value: overflow)
         .frame(width: slot, alignment: .leading)
         // Words leave at the left, so that is the edge that softens — and only
         // once something is actually leaving, or it would dim the first letter

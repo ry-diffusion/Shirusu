@@ -40,6 +40,18 @@ struct CaptionsView: View {
             }
 
             Section {
+                Picker("Caption updates", selection: $app.captionUpdateRate) {
+                    ForEach(AppModel.CaptionUpdateRate.allCases) { rate in
+                        Text(rate.label).tag(rate)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityHint(Text("Less frequent updates use less battery."))
+            } footer: {
+                Text("Instant feels most responsive. Normal and Slow use less battery for long calls and videos.")
+            }
+
+            Section {
                 HotkeyBadge()
             } header: {
                 Text("Globe key")
@@ -54,7 +66,9 @@ struct CaptionsView: View {
 
     private var toggle: some View {
         HStack {
-            Toggle(isOn: Binding(get: { app.isCaptioning }, set: { _ in app.toggleLiveCaptions() })) {
+            Toggle(isOn: Binding(get: { app.isCaptioning }, set: { enabled in
+                app.setLiveCaptions(enabled)
+            })) {
                 Text("Live captions")
             }
             .toggleStyle(.switch)

@@ -125,6 +125,38 @@ final class AppModel {
         }
     }
 
+    /// How often continuous captions ask the recogniser for a fresh preview.
+    /// These are a lower bound, not a promise: a slower model pass naturally
+    /// takes precedence so runs never overlap.
+    enum CaptionUpdateRate: String, CaseIterable, Identifiable {
+        case instant
+        case normal
+        case slow
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .instant:
+                return String(localized: "Instant", comment: "Caption update rate")
+            case .normal:
+                return String(localized: "Normal", comment: "Caption update rate")
+            case .slow:
+                return String(localized: "Slow", comment: "Caption update rate")
+            }
+        }
+
+        var interval: Double {
+            switch self {
+            case .instant: return 0.12
+            case .normal: return 0.6
+            // Still notably cheaper than Normal, but short enough that a fast
+            // dialogue does not look as though captions are skipping beats.
+            case .slow: return 0.9
+            }
+        }
+    }
+
     var mode: Mode = AppModel.storedMode {
         didSet {
             UserDefaults.standard.set(mode.rawValue, forKey: AppModel.modeKey)
@@ -136,6 +168,15 @@ final class AppModel {
 
     var delivery: Delivery = AppModel.storedDelivery {
         didSet { UserDefaults.standard.set(delivery.rawValue, forKey: AppModel.deliveryKey) }
+    }
+
+    /// Saved independently from the input source; a person may prefer slow
+    /// captions for a film but still want system audio as the source.
+    var captionUpdateRate: CaptionUpdateRate = AppModel.storedCaptionUpdateRate {
+        didSet {
+            UserDefaults.standard.set(captionUpdateRate.rawValue, forKey: AppModel.captionUpdateRateKey)
+            liveSession?.setContinuousUpdateInterval(captionUpdateRate.interval)
+        }
     }
 
     /// The last thing dictation delivered, so the screen can show it landed.
@@ -169,6 +210,7 @@ final class AppModel {
     private static let modeKey = "mode"
     private static let inputKey = "inputDevice"
     private static let sourceKey = "captureSource"
+    private static let captionUpdateRateKey = "captionUpdateRate"
     private static let ramblerKey = "rambler"
     private static let deliveryKey = "delivery"
 
@@ -192,6 +234,11 @@ final class AppModel {
 
     private static var storedDelivery: Delivery {
         Delivery(rawValue: UserDefaults.standard.string(forKey: deliveryKey) ?? "") ?? .insert
+    }
+
+    private static var storedCaptionUpdateRate: CaptionUpdateRate {
+        CaptionUpdateRate(rawValue: UserDefaults.standard.string(forKey: captionUpdateRateKey) ?? "")
+            ?? .normal
     }
 
     /// Where the audio comes from. The microphone hears the room; system audio
@@ -252,6 +299,7 @@ final class AppModel {
             // One engine behind both, so the weights load once.
             let engine = BatchTranscriber()
             let live = TranscriptionSession(models: models, engine: engine)
+            live.setContinuousUpdateInterval(captionUpdateRate.interval)
             // Only an utterance run finishes, and only dictation makes one:
             // captions run continuously and never take a release pass.
             live.onFinish = { [weak self] text in
@@ -285,7 +333,7 @@ final class AppModel {
                 guard let self else { return }
                 self.rambler.prepare(for: self.profiles.selected)
                 // The window the caption lives in, built but not shown.
-                self.captions.prepare(CaptionView().environment(self))
+                self.captions.prepare(self.captionView())
             }
             bindHotkey()
             // Arm it without asking: if Accessibility was already granted this
@@ -424,17 +472,39 @@ extension AppModel {
     /// is captioning a call or a video, which is not something you can hold a
     /// key through.
     func toggleLiveCaptions() {
-        if isCaptioning {
-            session?.stop()
-            captions.hide(after: 2)
-        } else {
+        setLiveCaptions(!isCaptioning)
+    }
+
+    /// Keeps the SwiftUI switch's desired value and the capture lifecycle in
+    /// lockstep. The panel may be hidden while captions are running, so it is
+    /// deliberately not the source of truth here.
+    func setLiveCaptions(_ enabled: Bool) {
+        guard enabled != isCaptioning else { return }
+
+        if enabled {
             showCaptions()
             beginCapture(.captions)
+        } else {
+            // A continuous run has no release pass to preserve. Cancelling it
+            // clears the input immediately, then clearing the transcript keeps
+            // the hidden panel from being brought back by stale words when the
+            // activity returns to idle.
+            session?.discard()
+            session?.clear()
+            activity.move(to: .idle)
+            captions.hide()
         }
     }
 
     func showCaptions() {
-        captions.show(CaptionView().environment(self))
+        captions.show(captionView())
+    }
+
+    private func captionView() -> some View {
+        CaptionView(onVisibilityChange: { [weak self] visible in
+            self?.captions.setContentVisible(visible)
+        })
+        .environment(self)
     }
 
     func toggleCaptions() {
