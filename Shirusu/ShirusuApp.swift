@@ -1,32 +1,19 @@
-//
-//  ShirusuApp.swift
-//  Shirusu
-//
-//  Created by Moizes Sousa on 19/09/26.
-//
-
 import SwiftUI
-import SwiftData
 
 @main
 struct ShirusuApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    @State private var app = AppModel()
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
+                .environment(app)
+                .frame(minWidth: 720, minHeight: 440)
         }
-        .modelContainer(sharedModelContainer)
+        .defaultSize(width: 900, height: 600)
+        .commands {
+            CommandGroup(replacing: .newItem) {}
+        }
+
     }
 }

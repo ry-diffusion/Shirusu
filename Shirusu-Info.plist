@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Xcode's INFOPLIST_KEY_* mechanism only carries keys its build spec
+	     knows about, and NSAudioCaptureUsageDescription is not one of them.
+	     Without this string the system refuses the Core Audio tap without ever
+	     asking the user. Keys generated from build settings are merged on top
+	     of this file. -->
+	<!-- Supplying INFOPLIST_FILE means Xcode stops synthesising these two,
+	     and without NSPrincipalClass the bundle builds but will not launch
+	     through LaunchServices. -->
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Shirusu transcribes the audio your Mac is playing, on this Mac, only while you ask it to.</string>
+</dict>
+</plist>

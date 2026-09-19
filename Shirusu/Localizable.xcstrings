@@ -1,0 +1,875 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "Allow": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir"
+          }
+        }
+      }
+    },
+    "Ask now": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pedir agora"
+          }
+        }
+      }
+    },
+    "Captions appear here while this is on": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As legendas aparecem aqui enquanto estiver ligado"
+          }
+        }
+      }
+    },
+    "Captures while held, and transcribes when released.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Captura enquanto estiver pressionado, e transcreve ao soltar."
+          }
+        }
+      }
+    },
+    "Checking what is already here": {
+      "comment": "Setup step",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verificando o que já está aqui"
+          }
+        }
+      }
+    },
+    "Choose a file": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escolher um arquivo"
+          }
+        }
+      }
+    },
+    "Clear": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Limpar"
+          }
+        }
+      }
+    },
+    "Compiling %@": {
+      "comment": "Setup step",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compilando %@"
+          }
+        }
+      }
+    },
+    "Copy it to the clipboard": {
+      "comment": "Dictation delivery",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar para a área de transferência"
+          }
+        }
+      }
+    },
+    "Copy last dictation": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar último ditado"
+          }
+        }
+      }
+    },
+    "Copy transcript": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar transcrição"
+          }
+        }
+      }
+    },
+    "Could not read “%@”: %@": {
+      "comment": "Generic audio decoding failure",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Could not read “%1$@”: %2$@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível ler “%@”: %@"
+          }
+        }
+      }
+    },
+    "Could not start": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível começar"
+          }
+        }
+      }
+    },
+    "Dictation": {
+      "comment": "Mode: speak and have the text typed",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ditado"
+          }
+        }
+      }
+    },
+    "Downloading %lld of %lld files": {
+      "comment": "Setup step",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Downloading %1$lld of %2$lld files"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Baixando %lld de %lld arquivos"
+          }
+        }
+      }
+    },
+    "Downloading the model for the first time": {
+      "comment": "First-run title while the speech model downloads",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Baixando o modelo pela primeira vez"
+          }
+        }
+      }
+    },
+    "Drop an audio file here": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solte um arquivo de áudio aqui"
+          }
+        }
+      }
+    },
+    "Drop in a recording and read it back as text.": {
+      "comment": "Subtitle for the Transcribe mode",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solte uma gravação e leia o que foi dito."
+          }
+        }
+      }
+    },
+    "Everything runs on this Mac. To speak instead of opening a file, switch to Dictation.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tudo roda neste Mac. Para falar em vez de abrir um arquivo, mude para Ditado."
+          }
+        }
+      }
+    },
+    "Fast": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rápido"
+          }
+        }
+      }
+    },
+    "Follow the system": {
+      "comment": "Input device: track whatever macOS is set to",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seguir o sistema"
+          }
+        }
+      }
+    },
+    "Follow the system (%@)": {
+      "comment": "Input device: track whatever macOS is set to",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seguir o sistema (%@)"
+          }
+        }
+      }
+    },
+    "Getting ready": {
+      "comment": "Title while an already-downloaded model loads",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparando"
+          }
+        }
+      }
+    },
+    "Globe key": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tecla Globo"
+          }
+        }
+      }
+    },
+    "Hold the Globe key and a caption bar follows what is being said.": {
+      "comment": "Subtitle for the Live Captions mode",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segure a tecla Globo e uma barra de legenda acompanha o que está sendo dito."
+          }
+        }
+      }
+    },
+    "Hold the Globe key and speak": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segure a tecla Globo e fale"
+          }
+        }
+      }
+    },
+    "Hold the Globe key, speak, and the words are typed where your cursor is.": {
+      "comment": "Subtitle for the Dictation mode",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segure a tecla Globo, fale, e as palavras são digitadas onde está o cursor."
+          }
+        }
+      }
+    },
+    "Hold the Globe key, wherever you are.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segure a tecla Globo, onde você estiver."
+          }
+        }
+      }
+    },
+    "Hold to talk": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segure para falar"
+          }
+        }
+      }
+    },
+    "How quickly the file is fed to the recogniser. Real time plays it back as you read along.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Com que velocidade o arquivo chega ao reconhecedor. Tempo real toca junto com a leitura."
+          }
+        }
+      }
+    },
+    "Last dictation": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Último ditado"
+          }
+        }
+      }
+    },
+    "Let go, and the words are typed where your cursor is.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solte, e as palavras são digitadas onde está o cursor."
+          }
+        }
+      }
+    },
+    "Listen to": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escutar"
+          }
+        }
+      }
+    },
+    "Listening": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvindo"
+          }
+        }
+      }
+    },
+    "Listening, let go to finish": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escutando, solte para terminar"
+          }
+        }
+      }
+    },
+    "Listing model files": {
+      "comment": "Setup step",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listando os arquivos do modelo"
+          }
+        }
+      }
+    },
+    "Live Captions": {
+      "comment": "Mode: caption what the Mac hears",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legendas ao Vivo"
+          }
+        }
+      }
+    },
+    "Live captions": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legendas ao vivo"
+          }
+        }
+      }
+    },
+    "Loading Nemotron onto the Neural Engine.": {
+      "comment": "Shown while a cached model is loaded",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carregando o Nemotron no Neural Engine."
+          }
+        }
+      }
+    },
+    "Loading the model": {
+      "comment": "Setup step",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carregando o modelo"
+          }
+        }
+      }
+    },
+    "Microphone": {
+      "comment": "Capture source",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microfone"
+          }
+        }
+      }
+    },
+    "Microphone access is off": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O acesso ao microfone está desligado"
+          }
+        }
+      }
+    },
+    "Needs Accessibility permission": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Precisa da permissão de Acessibilidade"
+          }
+        }
+      }
+    },
+    "No audio input device is available.": {
+      "comment": "Error when the Mac has no usable microphone",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nenhum dispositivo de entrada de áudio disponível."
+          }
+        }
+      }
+    },
+    "Nothing is typed for you. The text waits on the clipboard until you paste it.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nada é digitado para você. O texto espera na área de transferência até você colar."
+          }
+        }
+      }
+    },
+    "OK": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        }
+      }
+    },
+    "Open Keyboard settings": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir os ajustes de Teclado"
+          }
+        }
+      }
+    },
+    "Open audio": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir áudio"
+          }
+        }
+      }
+    },
+    "Playback pace": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ritmo de reprodução"
+          }
+        }
+      }
+    },
+    "Preview of the caption bar": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prévia da barra de legenda"
+          }
+        }
+      }
+    },
+    "Re-wrapping it as .caf or .m4a usually works.": {
+      "comment": "Hint appended when an Ogg file fails to decode",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reempacotar como .caf ou .m4a costuma resolver."
+          }
+        }
+      }
+    },
+    "Reading the Globe key, and typing where your cursor is, both go through Accessibility.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ler a tecla Globo, e digitar onde está o cursor, passam os dois pela Acessibilidade."
+          }
+        }
+      }
+    },
+    "Ready": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pronta"
+          }
+        }
+      }
+    },
+    "Real time": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tempo real"
+          }
+        }
+      }
+    },
+    "Reveal app": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar app"
+          }
+        }
+      }
+    },
+    "Set “Press 🌐 to” to “Do Nothing” in Keyboard settings and the key is yours.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Defina “Pressionar 🌐 para” como “Não Fazer Nada” nos ajustes de Teclado e a tecla é sua."
+          }
+        }
+      }
+    },
+    "Shirusu could not prepare the model": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Shirusu não conseguiu preparar o modelo"
+          }
+        }
+      }
+    },
+    "Shirusu has not asked for the microphone yet.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Shirusu ainda não pediu o microfone."
+          }
+        }
+      }
+    },
+    "Shirusu is fetching Nemotron, the speech model it transcribes with. This happens once. Afterwards everything runs on this Mac, with nothing sent anywhere.": {
+      "comment": "Explains the one-time model download",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Shirusu está baixando o Nemotron, o modelo de fala que faz a transcrição. Isso acontece uma vez só. Depois tudo roda neste Mac, sem enviar nada para lugar nenhum."
+          }
+        }
+      }
+    },
+    "Shirusu needs Accessibility permission to type where your cursor is.": {
+      "comment": "Shown when dictation cannot paste into the focused app",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Shirusu precisa da permissão de Acessibilidade para digitar onde está o cursor."
+          }
+        }
+      }
+    },
+    "Shirusu needs microphone access. Grant it in System Settings, under Privacy & Security.": {
+      "comment": "Error when microphone permission was denied",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Shirusu precisa de acesso ao microfone. Libere em Ajustes do Sistema, em Privacidade e Segurança."
+          }
+        }
+      }
+    },
+    "Shirusu needs permission to record system audio. Grant it in System Settings, under Privacy & Security.": {
+      "comment": "Error when system audio recording permission is missing",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Shirusu precisa de permissão para gravar o áudio do sistema. Libere em Ajustes do Sistema, em Privacidade e Segurança."
+          }
+        }
+      }
+    },
+    "Speak. The bar shows what has been heard so far.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fale. A barra mostra o que foi ouvido até agora."
+          }
+        }
+      }
+    },
+    "Stop": {
+      "comment": "Stops the running transcription",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parar"
+          }
+        }
+      }
+    },
+    "System audio": {
+      "comment": "Capture source",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Áudio do sistema"
+          }
+        }
+      }
+    },
+    "System audio capture failed while %@ (error %lld).": {
+      "comment": "Generic Core Audio tap failure",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "System audio capture failed while %1$@ (error %2$lld)."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A captura de áudio do sistema falhou ao %@ (erro %lld)."
+          }
+        }
+      }
+    },
+    "The bar floats above other apps and never takes focus, so it does not interrupt what you are doing. The Globe key switches it on and off too.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A barra flutua sobre os outros apps e nunca rouba o foco, então não interrompe o que você está fazendo. A tecla Globo também liga e desliga."
+          }
+        }
+      }
+    },
+    "The button does the same thing as the key, for when the key is not set up yet.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O botão faz o mesmo que a tecla, para quando a tecla ainda não estiver configurada."
+          }
+        }
+      }
+    },
+    "The first words land after a few seconds, once the model has enough context to commit.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As primeiras palavras chegam depois de alguns segundos, quando o modelo já tem contexto suficiente para se comprometer."
+          }
+        }
+      }
+    },
+    "The room, through the microphone.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A sala, pelo microfone."
+          }
+        }
+      }
+    },
+    "The system audio tap reported a format Shirusu cannot read.": {
+      "comment": "Error when the system audio stream format is unusable",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A captura de áudio do sistema retornou um formato que o Shirusu não consegue ler."
+          }
+        }
+      }
+    },
+    "The text is pasted into whatever app had focus. Your clipboard is put back afterwards.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O texto é colado no app que estava em foco. Sua área de transferência volta ao normal depois."
+          }
+        }
+      }
+    },
+    "Transcribe": {
+      "comment": "Mode: turn an audio file into text",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcrever"
+          }
+        }
+      }
+    },
+    "Try again": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tentar de novo"
+          }
+        }
+      }
+    },
+    "Turn it on for Shirusu in Privacy and Security settings.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ligue para o Shirusu nos ajustes de Privacidade e Segurança."
+          }
+        }
+      }
+    },
+    "Turn on the Globe key": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ligar a tecla Globo"
+          }
+        }
+      }
+    },
+    "Type it where my cursor is": {
+      "comment": "Dictation delivery",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digitar onde está o cursor"
+          }
+        }
+      }
+    },
+    "Unavailable on this Mac": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indisponível neste Mac"
+          }
+        }
+      }
+    },
+    "What this Mac is playing. A call, a video, a voice message.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O que este Mac está tocando. Uma ligação, um vídeo, um áudio."
+          }
+        }
+      }
+    },
+    "When I let go": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quando eu soltar"
+          }
+        }
+      }
+    },
+    "macOS is using the Globe key": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O macOS está usando a tecla Globo"
+          }
+        }
+      }
+    },
+    "“%@” decoded to silence.": {
+      "comment": "Error when a file contains no audio",
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” não tinha áudio nenhum."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

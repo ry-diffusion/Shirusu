@@ -1,0 +1,80 @@
+import AppKit
+import SwiftUI
+
+/// One accent, one radius scale, one motion vocabulary. Everything in the app
+/// pulls from here so the surfaces stay in agreement.
+enum Ink {
+    /// The blue from the app icon's waveform (#629EFC). One accent, and it is
+    /// the brand's, so the window and the Dock tile agree.
+    static let accent = dynamic(
+        dark: NSColor(srgbRed: 0.458, green: 0.672, blue: 0.992, alpha: 1),
+        light: NSColor(srgbRed: 0.129, green: 0.365, blue: 0.886, alpha: 1)
+    )
+
+    /// Text the model has committed to.
+    static let settled = Color.primary
+
+    /// Text still in flight. Dimmer, not a different hue: it is the same word,
+    /// just not final yet.
+    static let volatile = dynamic(
+        dark: NSColor(srgbRed: 0.458, green: 0.672, blue: 0.992, alpha: 0.74),
+        light: NSColor(srgbRed: 0.129, green: 0.365, blue: 0.886, alpha: 0.80)
+    )
+
+    /// Cool near-black rather than pure black, so the blue reads as deliberate
+    /// and the surface keeps some depth.
+    static let canvas = dynamic(
+        dark: NSColor(srgbRed: 0.055, green: 0.060, blue: 0.075, alpha: 1),
+        light: NSColor(srgbRed: 0.976, green: 0.977, blue: 0.984, alpha: 1)
+    )
+
+    static let hairline = Color.primary.opacity(0.09)
+
+    private static func dynamic(dark: NSColor, light: NSColor) -> Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            let match = appearance.bestMatch(from: [.darkAqua, .aqua, .accessibilityHighContrastDarkAqua])
+            let isDark = match == .darkAqua || match == .accessibilityHighContrastDarkAqua
+            return isDark ? dark : light
+        })
+    }
+}
+
+/// Corner radii. The rule: surfaces 14, controls 10, anything pill-shaped is a capsule.
+enum Radius {
+    static let surface: CGFloat = 14
+    static let control: CGFloat = 10
+}
+
+/// Springs, in Apple's damping/response vocabulary. `bounce: 0` is critically
+/// damped and is the default; bounce is reserved for motion the user started
+/// with a gesture.
+enum Motion {
+    /// Everything that just changes state.
+    static let settle = Animation.spring(duration: 0.38, bounce: 0)
+    /// A word arriving in the transcript. Slightly quicker so text keeps up with speech.
+    static let arrive = Animation.spring(duration: 0.28, bounce: 0)
+    /// A word arriving in the caption. A fade and nothing else.
+    ///
+    /// The caption sits off to the side of whatever the person is actually
+    /// doing, and the plate under the word is already resizing while the line
+    /// is already panning. A third motion on top of those two reads as a
+    /// flinch rather than as text appearing, which is why the blur and the
+    /// slide that used to be here are gone.
+    static let caption = Animation.easeOut(duration: 0.3)
+
+    /// The caption plate resizing, and the line panning inside it.
+    ///
+    /// Long and critically damped, so it is never seen to start or to stop.
+    /// While someone is talking this is re-aimed every word, and a spring
+    /// re-aimed in flight keeps its velocity — so what could have been a
+    /// series of little steps stays one slow drift.
+    static let glide = Animation.smooth(duration: 0.6)
+    /// Reserved for direct manipulation (drag release, flick).
+    static let momentum = Animation.spring(duration: 0.4, bounce: 0.18)
+}
+
+extension EnvironmentValues {
+    /// Reduce Motion means "gentler", not "none": call sites cross-fade instead
+    /// of translating and blurring.
+    var prefersCalmMotion: Bool { accessibilityReduceMotion }
+}

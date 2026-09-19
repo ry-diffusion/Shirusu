@@ -6,6 +6,10 @@
 	objectVersion = 110;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		FA03D0000000000000000003 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = FA02D0000000000000000002 /* FluidAudio */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		27AF955C305EB636004060C7 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -51,6 +55,7 @@
 		27AF9549305EB634004060C7 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				FA03D0000000000000000003 /* FluidAudio in Frameworks */,
 			);
 		};
 		27AF9558305EB636004060C7 /* Frameworks */ = {
@@ -103,6 +108,9 @@
 				27AF954E305EB634004060C7 /* Shirusu */,
 			);
 			name = Shirusu;
+			packageProductDependencies = (
+				FA02D0000000000000000002 /* FluidAudio */,
+			);
 			productName = Shirusu;
 			productReference = 27AF954C305EB634004060C7 /* Shirusu.app */;
 			productType = "com.apple.product-type.application";
@@ -178,9 +186,13 @@
 			knownRegions = (
 				en,
 				Base,
+				"pt-BR",
 			);
 			mainGroup = 27AF9543305EB634004060C7;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				FA01D0000000000000000001 /* XCRemoteSwiftPackageReference "FluidAudio" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 27AF954D305EB634004060C7 /* Products */;
 			projectDirPath = "";
@@ -366,7 +378,7 @@
 		27AF956E305EB636004060C7 /* Debug configuration for PBXNativeTarget "Shirusu" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "Shirusu Icon";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -374,10 +386,15 @@
 				DEVELOPMENT_TEAM = 7B3G244WZG;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Shirusu-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Shirusu;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Shirusu listens to your microphone only while you are dictating, and transcribes it on this Mac.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -398,7 +415,7 @@
 		27AF956F305EB636004060C7 /* Release configuration for PBXNativeTarget "Shirusu" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "Shirusu Icon";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -406,10 +423,15 @@
 				DEVELOPMENT_TEAM = 7B3G244WZG;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Shirusu-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Shirusu;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Shirusu listens to your microphone only while you are dictating, and transcribes it on this Mac.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -543,6 +565,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		FA01D0000000000000000001 /* XCRemoteSwiftPackageReference "FluidAudio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/FluidInference/FluidAudio.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.12.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		FA02D0000000000000000002 /* FluidAudio */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FA01D0000000000000000001 /* XCRemoteSwiftPackageReference "FluidAudio" */;
+			productName = FluidAudio;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 27AF9544305EB634004060C7 /* Project object */;
 	validationLevel = 1;
