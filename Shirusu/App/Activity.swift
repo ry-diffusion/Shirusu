@@ -36,6 +36,7 @@ final class Activity {
 
     private(set) var state: State = .idle
 
+    @ObservationIgnored private var lapse: Task<Void, Never>?
     private let log = Logger(subsystem: "br.com.zesmoi.Shirusu", category: "activity")
 
     /// Moves, if the move is legal. Returns whether it happened.
@@ -50,7 +51,43 @@ final class Activity {
             return false
         }
         state = next
+        watch(next)
         return true
+    }
+
+    /// How long a state may last before it is assumed to be stuck.
+    ///
+    /// Only the transient ones have a limit. `idle` and `captioning` are places
+    /// to stay; the rest are steps that something else is supposed to move on
+    /// from, and if that something stops reporting, the alternative to a timer
+    /// here is a dead Globe key until the app is relaunched. That is not
+    /// hypothetical: it is the bug this was added for.
+    ///
+    /// The numbers are ceilings, not estimates. A release pass over five
+    /// minutes of speech takes a couple of seconds.
+    private static func limit(of state: State) -> Duration? {
+        switch state {
+        case .transcribing: return .seconds(60)
+        case .polishing: return .seconds(30)
+        case .delivered: return .seconds(10)
+        case .idle, .dictating, .captioning, .failed: return nil
+        }
+    }
+
+    private func watch(_ state: State) {
+        lapse?.cancel()
+        lapse = nil
+        guard let limit = Self.limit(of: state) else { return }
+        lapse = Task { [weak self] in
+            try? await Task.sleep(for: limit)
+            guard !Task.isCancelled, let self, self.state == state else { return }
+            self.log.error(
+                """
+                Stuck in \(String(describing: state), privacy: .public); \
+                releasing so the key works again
+                """)
+            self.state = .idle
+        }
     }
 
     /// The whole transition table, which is also the specification.
@@ -71,8 +108,11 @@ final class Activity {
             (.delivered, .idle):
             return true
 
-        // A press that produced nothing, or was thrown away.
-        case (.dictating, .idle):
+        // A run that produced nothing, was thrown away, or gave up. A press
+        // too short to transcribe ends here, and before this existed it ended
+        // nowhere: the machine sat in `transcribing` and every later press was
+        // refused until the app was relaunched.
+        case (.dictating, .idle), (.transcribing, .idle), (.polishing, .idle):
             return true
 
         // Dictating again before the last result has faded. The bar is still

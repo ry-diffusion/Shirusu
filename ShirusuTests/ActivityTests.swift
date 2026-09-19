@@ -66,11 +66,20 @@ struct ActivityTests {
         #expect(!activity.move(to: .captioning))
     }
 
-    @Test("A capture that never produced anything goes back to idle")
-    func abandonedPress() {
-        let activity = Activity()
-        activity.move(to: .dictating)
-        #expect(activity.move(to: .idle))
+    @Test("A run that produced nothing goes back to idle from wherever it got to")
+    func nothingCameOfIt() {
+        // The bug this exists for: a press too short to transcribe used to
+        // leave the machine in `transcribing`, and every later press was
+        // refused until the app was relaunched.
+        for stall in [Activity.State.dictating, .transcribing, .polishing] {
+            let activity = Activity()
+            activity.move(to: .dictating)
+            if stall != .dictating { activity.move(to: .transcribing) }
+            if stall == .polishing { activity.move(to: .polishing) }
+            #expect(activity.state == stall)
+            #expect(activity.move(to: .idle))
+            #expect(activity.move(to: .dictating), "the key has to work again")
+        }
     }
 
     @Test("Anything can fail, and a failure is cleared by going idle")

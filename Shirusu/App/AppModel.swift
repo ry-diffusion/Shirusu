@@ -285,8 +285,16 @@ extension AppModel {
         }
         hotkey.onRelease = { [weak self] in
             guard let self, self.activity.state == .dictating else { return }
+            // Only if there is actually a run to finish. A press that never
+            // started one has nothing to report back, so it goes straight home
+            // rather than waiting to be told about a run that does not exist.
+            guard let session = self.liveSession, session.phase.isBusy else {
+                self.activity.move(to: .idle)
+                self.captions.hide(after: 0.6)
+                return
+            }
             self.activity.move(to: .transcribing)
-            self.liveSession?.stop()
+            session.stop()
             // A ceiling, not the plan: delivery takes the bar down as soon as
             // the words have landed. This is only here so a pass that never
             // finishes does not leave the bar up for good.
@@ -296,6 +304,14 @@ extension AppModel {
 
     /// Hands the finished text wherever this mode says it goes.
     private func deliver(_ text: String) async {
+        guard !text.isEmpty else {
+            // Nothing was heard. Nothing to type, nothing to show, and the
+            // machine has to be told or the next press is refused.
+            activity.move(to: .idle)
+            captions.hide(after: 0.6)
+            return
+        }
+
         var text = text
         if isRambler, activity.move(to: .polishing) {
             // Surfaced, because it is a second or two of someone waiting with

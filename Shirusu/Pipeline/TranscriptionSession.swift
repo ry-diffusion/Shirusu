@@ -68,11 +68,18 @@ final class TranscriptionSession {
     /// this — you pressed a key, and the bar answering that is the point.
     private(set) var isSpeaking = false
 
-    /// Called once with the finished text, after the release pass.
+    /// Called once when an utterance run ends, with whatever was transcribed.
     ///
     /// Dictation needs a moment to act on, not a value to watch: the words have
     /// to be delivered exactly once, when they are final. Observing `transcript`
     /// would fire on every preview pass instead.
+    ///
+    /// It fires on *every* way a run can end, including an empty result, a
+    /// cancellation and a failure, and the text is empty when nothing was
+    /// heard. That is not a detail: this used to fire only when there was
+    /// something to say, and a press too short to transcribe left whatever was
+    /// driving the UI waiting for a call that never came. The Globe key went
+    /// dead until the app was relaunched.
     var onFinish: ((String) -> Void)?
 
     private let models: AsrModels
@@ -87,6 +94,8 @@ final class TranscriptionSession {
     /// the difference between releasing the key and throwing the audio away.
     private var isStopping = false
     private var intent: Intent = .utterance
+    /// Guards against reporting the same run twice.
+    private var hasFinished = false
     /// The previous pass's text, so an unchanged one is not re-applied.
     private var lastPreview = ""
     /// When a chunk last carried something louder than room tone.
@@ -128,6 +137,7 @@ final class TranscriptionSession {
         guard !phase.isBusy else { return }
 
         self.intent = intent
+        hasFinished = false
         isSpeaking = false
         lastPreview = ""
         lastAudibleAt = nil
@@ -169,17 +179,23 @@ final class TranscriptionSession {
                     let final = try await self.engine.transcribe(self.capture.take())
                     if !final.isEmpty {
                         self.transcript.apply(confirmed: final, volatile: "")
-                        self.onFinish?(final)
                     }
+                    self.decay()
+                    self.phase = .idle
+                    self.finish(final)
+                    return
                 }
 
                 self.decay()
                 self.phase = .idle
+                self.finish("")
             } catch is CancellationError {
                 self.phase = .idle
+                self.finish("")
             } catch {
                 self.log.error("Session failed: \(error.localizedDescription, privacy: .public)")
                 self.phase = .failed(error.localizedDescription)
+                self.finish("")
             }
         }
     }
@@ -270,6 +286,16 @@ final class TranscriptionSession {
     /// How often to look while nothing is happening. Cheap enough to be
     /// frequent, and the gate below it costs nothing at all.
     private static let idleInterval: Double = 0.25
+
+    /// Exactly once per utterance run, whatever became of it.
+    ///
+    /// Captions are left out: a continuous run has no end to report, and it is
+    /// switched off rather than finished.
+    private func finish(_ text: String) {
+        guard intent == .utterance, !hasFinished else { return }
+        hasFinished = true
+        onFinish?(text)
+    }
 
     private static let minimumInterval: Double = 0.12
 

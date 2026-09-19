@@ -54,8 +54,13 @@ struct HoldToTalk: View {
                 .onEnded { _ in
                     guard isHeld else { return }
                     isHeld = false
+                    guard let session = app.session, session.phase.isBusy else {
+                        app.activity.move(to: .idle)
+                        app.captions.hide(after: 0.6)
+                        return
+                    }
                     app.activity.move(to: .transcribing)
-                    app.session?.stop()
+                    session.stop()
                     app.captions.hide(after: app.isRambler ? 12 : 2)
                 }
         )
