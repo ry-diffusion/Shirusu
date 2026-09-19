@@ -102,6 +102,7 @@ final class AppModel {
     var mode: Mode = AppModel.storedMode {
         didSet {
             UserDefaults.standard.set(mode.rawValue, forKey: AppModel.modeKey)
+            if mode == .dictation, isRambler { rambler.prepare() }
             guard oldValue != mode, oldValue.isLive else { return }
             // Leaving a live mode stops what it had running. Captions still
             // transcribing from a screen you navigated away from is a
@@ -126,9 +127,24 @@ final class AppModel {
     /// The inputs this Mac has right now, kept current as they come and go.
     let inputs = AudioInputs()
 
+    /// Cleans dictation up on release, when it is switched on.
+    let rambler = Rambler()
+
+    /// Whether to tidy dictation before it is delivered.
+    var isRambler: Bool = UserDefaults.standard.bool(forKey: AppModel.ramblerKey) {
+        didSet {
+            UserDefaults.standard.set(isRambler, forKey: AppModel.ramblerKey)
+            if isRambler { rambler.prepare() }
+        }
+    }
+
+    /// True while the model is working on what was just said.
+    private(set) var isPolishing = false
+
     private static let modeKey = "mode"
     private static let inputKey = "inputDevice"
     private static let sourceKey = "captureSource"
+    private static let ramblerKey = "rambler"
     private static let deliveryKey = "delivery"
 
     /// Opens where it was left. First run starts on Transcribe: it is the one
@@ -215,13 +231,14 @@ final class AppModel {
             let session = TranscriptionSession(models: models, profile: .pushToTalk)
             session.onFinish = { [weak self] text in
                 guard let self, self.mode == .dictation else { return }
-                self.deliver(text)
+                Task { await self.deliver(text) }
             }
             self.session = session
             stage = .ready
             // Warm the release pass in the background: the window is already
             // usable, and the first press should not pay for it.
             Task { await session.prepare() }
+            if isRambler { rambler.prepare() }
             bindHotkey()
             // Arm it without asking: if Accessibility was already granted this
             // just works, and if it was not, the toolbar shows why.
@@ -270,15 +287,28 @@ extension AppModel {
         hotkey.onRelease = { [weak self] in
             guard let self, self.mode == .dictation else { return }
             self.session?.stop()
-            // The words are already in the app you were typing in, and a bar
-            // still hanging over them is just something to wait out.
-            self.captions.hide(after: 2)
+            // A ceiling, not the plan: delivery takes the bar down as soon as
+            // the words have landed. This is only here so a pass that never
+            // finishes does not leave the bar up for good.
+            self.captions.hide(after: self.isRambler ? 12 : 2)
         }
     }
 
     /// Hands the finished text wherever this mode says it goes.
-    private func deliver(_ text: String) {
+    private func deliver(_ text: String) async {
+        var text = text
+        if isRambler {
+            // Surfaced, because it is a second or two of someone waiting with
+            // their hands over the keyboard. An unexplained pause there reads
+            // as the dictation having failed.
+            isPolishing = true
+            text = await rambler.polish(text)
+            isPolishing = false
+        }
+
         lastDictation = text
+        defer { captions.hide(after: 1.2) }
+
         switch delivery {
         case .insert:
             do {

@@ -33,7 +33,7 @@ struct CaptionView: View {
     /// Whether there is anything worth putting on screen.
     private var isShowing: Bool {
         if isPreview { return true }
-        if announcesItself { return isListening || hasText }
+        if announcesItself { return isListening || hasText || app.isPolishing }
         // Live captions: only while words are actually arriving. `isSpeaking`
         // goes false a few seconds after the last new word, which is what
         // "there is nothing to caption right now" looks like from here.
@@ -101,7 +101,11 @@ struct CaptionView: View {
     /// screen this small.
     @ViewBuilder
     private var indicator: some View {
-        if !isListening {
+        if app.isPolishing {
+            // A second or two with hands over the keyboard needs something to
+            // look at, or the dictation reads as having failed.
+            BreathingWaveform(tint: .white.opacity(0.8))
+        } else if !isListening {
             Image(systemName: "text.bubble")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.white.opacity(0.62))
