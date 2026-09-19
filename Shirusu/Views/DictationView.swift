@@ -8,6 +8,7 @@ struct DictationView: View {
     @Environment(AppModel.self) private var app
 
     @State private var microphone = AVCaptureDevice.authorizationStatus(for: .audio)
+    @State private var isEditing = false
 
     var body: some View {
         @Bindable var app = app
@@ -52,20 +53,22 @@ struct DictationView: View {
                 switch app.rambler.availability {
                 case .available:
                     if app.isRambler {
-                        Picker("How far it goes", selection: $app.ramblerStyle) {
-                            ForEach(Rambler.Style.allCases) { style in
-                                Text(style.label).tag(style)
+                        HStack {
+                            Picker("Profile", selection: Bindable(app.profiles).selection) {
+                                ForEach(app.profiles.all) { profile in
+                                    Text(profile.name).tag(profile.id)
+                                }
                             }
-                        }
-                        .pickerStyle(.menu)
+                            .pickerStyle(.menu)
 
-                        Text(app.ramblerStyle.summary)
+                            Button("Edit…") { isEditing = true }
+                        }
+
+                        Text(app.profiles.selected.latitude.summary)
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
-
-                        RamblerExample()
                     }
                 case .unavailable(let reason):
                     RamblerUnavailable(reason: reason)
@@ -110,6 +113,7 @@ struct DictationView: View {
             }
         }
         .onAppear { microphone = AVCaptureDevice.authorizationStatus(for: .audio) }
+        .sheet(isPresented: $isEditing) { RamblerSettings() }
     }
 }
 
@@ -161,32 +165,6 @@ private struct MicrophoneRow: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
-        }
-    }
-}
-
-/// One line in, one line out. The feature is hard to describe and obvious to
-/// see, so it is shown rather than explained twice.
-private struct RamblerExample: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            line("You say", "um, so, send the commit to Pedro, no, to João", .secondary)
-            line("Balanced gives", "Send the commit to João.", .primary)
-        }
-        .padding(.vertical, 2)
-    }
-
-    private func line(_ label: LocalizedStringKey, _ text: LocalizedStringKey, _ tint: HierarchicalShapeStyle) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text(label)
-                .font(.system(size: 11))
-                .foregroundStyle(.tertiary)
-                .frame(width: 88, alignment: .trailing)
-            Text(text)
-                .font(.system(size: 12))
-                .foregroundStyle(tint)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
         }
     }
 }

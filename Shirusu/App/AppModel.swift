@@ -130,10 +130,8 @@ final class AppModel {
     /// Cleans dictation up on release, when it is switched on.
     let rambler = Rambler()
 
-    /// How far the model may go when it tidies dictation.
-    var ramblerStyle: Rambler.Style = AppModel.storedStyle {
-        didSet { UserDefaults.standard.set(ramblerStyle.rawValue, forKey: AppModel.styleKey) }
-    }
+    /// The rewrite profiles, built-in and the user's own.
+    let profiles = RewriteProfiles()
 
     /// Whether to tidy dictation before it is delivered.
     var isRambler: Bool = UserDefaults.standard.bool(forKey: AppModel.ramblerKey) {
@@ -158,7 +156,6 @@ final class AppModel {
     private static let inputKey = "inputDevice"
     private static let sourceKey = "captureSource"
     private static let ramblerKey = "rambler"
-    private static let styleKey = "ramblerStyle"
     private static let deliveryKey = "delivery"
 
     /// Opens where it was left. First run starts on Transcribe: it is the one
@@ -169,10 +166,6 @@ final class AppModel {
     }
 
     /// Captions default to what the Mac is playing, which is what they are for.
-    private static var storedStyle: Rambler.Style {
-        Rambler.Style(rawValue: UserDefaults.standard.string(forKey: styleKey) ?? "") ?? .balanced
-    }
-
     private static var storedSource: CaptureSource {
         CaptureSource(rawValue: UserDefaults.standard.string(forKey: sourceKey) ?? "") ?? .systemAudio
     }
@@ -320,7 +313,7 @@ extension AppModel {
             // their hands over the keyboard. An unexplained pause there reads
             // as the dictation having failed.
             polish = .working
-            let polished = await rambler.polish(text, style: ramblerStyle)
+            let polished = await rambler.polish(text, profile: profiles.selected)
             if polished != text {
                 text = polished
                 // Put the result where the raw text was. Watching the filler

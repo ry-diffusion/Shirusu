@@ -12,22 +12,40 @@ import OSLog
 /// what it cannot do is know that "manda pro Pedro, não, pro João" has one
 /// recipient in it.
 ///
-/// Apple's on-device model does the cleaning, so the words never leave the Mac.
+/// Apple's on-device model does the work, so the words never leave the Mac.
 /// That is not a footnote for a dictation app: everything else here runs
 /// locally, and sending what someone dictates to a server to have the "ums"
 /// taken out would quietly undo that.
 ///
 /// The risk is the whole design problem. A language model handed a transcript
-/// will happily improve it — an earlier probe on this Mac turned "Roda os
-/// testes." into "Execute os testes." and "map" into "mapa", which is a worse
-/// failure than a stray "tipo", because it is fluent and therefore invisible.
-/// So the instructions forbid rewording, and `isPlausible` checks the output
+/// will happily improve it, and an improvement that says something slightly
+/// different is worse than a stray "tipo" because it is fluent and therefore
+/// invisible. So nothing the model returns is trusted: `isPlausible` checks it
 /// against what was actually said before any of it is typed anywhere.
 @MainActor
 @Observable
 final class Rambler {
+    /// One run, with enough detail for the test area to show its work.
+    struct Attempt: Sendable {
+        var output: String
+        var accepted: Bool
+        var seconds: Double
+        /// Why it was turned down, when it was.
+        var refusal: Refusal?
+    }
+
+    enum Refusal: Sendable {
+        case unavailable
+        case tooShort
+        case differentLanguage
+        case wrongLength
+        case figuresChanged
+        case tooLittleInCommon
+        case failed(String)
+    }
+
     @ObservationIgnored private let model = SystemLanguageModel.default
-    @ObservationIgnored private var session: LanguageModelSession?
+    @ObservationIgnored private var warm: LanguageModelSession?
     @ObservationIgnored private let log = Logger(
         subsystem: "br.com.zesmoi.Shirusu", category: "rambler")
 
@@ -37,66 +55,88 @@ final class Rambler {
     /// Loads the model before the first press needs it. Cold, the first
     /// response pays for the load on top of its own generation.
     func prepare() {
-        guard session == nil, model.isAvailable else { return }
-        let session = makeSession()
+        guard warm == nil, model.isAvailable else { return }
+        let session = LanguageModelSession(
+            model: model, instructions: Self.instructions(for: RewriteProfile.default))
         session.prewarm()
-        self.session = session
+        warm = session
     }
 
     /// Below this there is nothing to tidy that is worth a second of waiting.
     /// "Oi, tudo bem" does not ramble.
-    private static let minimumWords = 6
+    static let minimumWords = 6
 
     /// Returns the cleaned text, or the original if cleaning it would be a
     /// guess rather than an edit.
-    func polish(_ raw: String, style: Style) async -> String {
-        let spoken = Self.words(raw)
-        guard spoken.count >= Self.minimumWords, model.isAvailable else { return raw }
+    func polish(_ raw: String, profile: RewriteProfile) async -> String {
+        guard Self.words(raw).count >= Self.minimumWords else { return raw }
+        let attempt = await run(raw, profile: profile, enforcingLength: true)
+        return attempt.accepted ? attempt.output : raw
+    }
+
+    /// The same work, reported rather than applied. This is what the test area
+    /// calls, so what it shows is what dictation would do.
+    ///
+    /// The one difference is the word floor: a short sample is worth trying in
+    /// a test field, where somebody is deliberately looking at the result.
+    func attempt(_ raw: String, profile: RewriteProfile) async -> Attempt {
+        await run(raw, profile: profile, enforcingLength: false)
+    }
+
+    private func run(_ raw: String, profile: RewriteProfile, enforcingLength: Bool) async -> Attempt {
+        guard model.isAvailable else {
+            return Attempt(output: raw, accepted: false, seconds: 0, refusal: .unavailable)
+        }
+        if enforcingLength, Self.words(raw).count < Self.minimumWords {
+            return Attempt(output: raw, accepted: false, seconds: 0, refusal: .tooShort)
+        }
 
         // A fresh session every time. These are separate thoughts dictated into
         // separate apps, and a session that remembers the last one can blend it
         // into this one.
-        // Built per style, because the instructions differ by style.
-        let session = LanguageModelSession(model: model, instructions: Self.instructions(for: style))
+        let session = LanguageModelSession(
+            model: model, instructions: Self.instructions(for: profile))
         defer { prepare() }
 
+        let started = ContinuousClock.now
         do {
-            let started = ContinuousClock.now
             let response = try await session.respond(
-                to: Self.prompt(for: raw, style: style),
+                to: Self.prompt(for: raw, profile: profile),
                 options: GenerationOptions(temperature: 0)
             )
-            let polished = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            guard Self.isPlausible(polished, from: raw, style: style) else {
+            let output = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            let elapsed = Self.seconds(since: started)
+            let refusal = Self.refusal(for: output, from: raw, latitude: profile.latitude)
+            if refusal != nil {
                 log.notice("Rambler output rejected; keeping the transcript as spoken")
-                return raw
             }
-            log.info(
-                """
-                Rambler (\(style.rawValue, privacy: .public)) took \
-                \(started.duration(to: .now), privacy: .public)
-                """)
-            return polished
+            return Attempt(
+                output: output, accepted: refusal == nil, seconds: elapsed, refusal: refusal)
         } catch {
             // Never a reason to lose the dictation.
             log.error("Rambler failed: \(error.localizedDescription, privacy: .public)")
-            return raw
+            return Attempt(
+                output: raw, accepted: false, seconds: Self.seconds(since: started),
+                refusal: .failed(error.localizedDescription))
         }
     }
 
-    private func makeSession() -> LanguageModelSession {
-        LanguageModelSession(model: model, instructions: Self.instructions(for: .balanced))
+    private static func seconds(since start: ContinuousClock.Instant) -> Double {
+        let elapsed = ContinuousClock.now - start
+        return Double(elapsed.components.seconds)
+            + Double(elapsed.components.attoseconds) / 1e18
     }
+
+    // MARK: - Talking to the model
 
     /// What the model is told before it sees anything.
     ///
-    /// Two halves. The first is the same whatever the style, and every line of
+    /// Two halves. The first is the same for every profile, and every line of
     /// it is there because the model did the thing it forbids. The second is
-    /// the licence, which is the only part a style changes.
-    private static func instructions(for style: Style) -> String {
+    /// the licence, which is the only part a profile changes.
+    static func instructions(for profile: RewriteProfile) -> String {
         let licence =
-            style.isRewrite
+            profile.latitude.allowsRewording
             ? """
             You may change the wording. You may not change the meaning. Keep \
             every fact, every name, every number and every date exactly as \
@@ -140,7 +180,7 @@ final class Rambler {
             """
     }
 
-    private static func prompt(for raw: String, style: Style) -> String {
+    static func prompt(for raw: String, profile: RewriteProfile) -> String {
         // Naming the language, in that language, is what stopped this
         // translating. Told only in English not to translate, the model
         // answered in English three times out of four: "eu tentei rodar o
@@ -155,7 +195,7 @@ final class Rambler {
         return """
             The dictation below is in \(named). Reply in \(named).
 
-            \(style.direction)
+            \(profile.direction)
 
             <<<DICTATION
             \(raw)
@@ -165,9 +205,9 @@ final class Rambler {
 
     /// The language the text is actually in, named in that language.
     private static func language(of text: String) -> String {
-        Locale(identifier: code(of: text)?.rawValue ?? "")
-            .localizedString(forLanguageCode: code(of: text)?.rawValue ?? "")
-            ?? "the same language it is already in"
+        guard let code = code(of: text) else { return "the same language it is already in" }
+        return Locale(identifier: code.rawValue)
+            .localizedString(forLanguageCode: code.rawValue) ?? code.rawValue
     }
 
     private static func code(of text: String) -> NLLanguage? {
@@ -178,38 +218,46 @@ final class Rambler {
 
     // MARK: - Checking the model's work
 
-    /// Whether the result is something worth typing.
-    ///
     /// Cheap insurance against the failure that matters. A model that drifts
     /// does not produce nonsense, it produces a good sentence that says
     /// something slightly different, and this text is about to be typed into
     /// whatever the person was working in.
     ///
-    /// Three checks, tightened or loosened by style. It must be in the same
-    /// language, which is the one failure this model reliably has. It must be
-    /// roughly the right length. And enough of it must be words that were
-    /// actually said: nearly all of it for a cleanup, much less for a rewrite,
-    /// where changing the words is the job.
-    ///
-    /// Numbers are checked whatever the style. A rewrite may reword a sentence
-    /// freely; it may not quietly turn a 15 into a 50.
-    static func isPlausible(_ polished: String, from raw: String, style: Style) -> Bool {
+    /// Four checks, loosened by latitude. It must be in the same language,
+    /// which is the one failure this model reliably has. Every figure in the
+    /// input must still be there: a rewrite may reword a sentence freely, it
+    /// may not quietly turn a 15 into a 50. It must be roughly the right
+    /// length. And enough of it must be words that were actually said: most of
+    /// it for a cleanup, much less for a rewrite, where changing the words is
+    /// the job.
+    static func isPlausible(
+        _ polished: String, from raw: String, latitude: RewriteProfile.Latitude
+    ) -> Bool {
+        refusal(for: polished, from: raw, latitude: latitude) == nil
+    }
+
+    static func refusal(
+        for polished: String, from raw: String, latitude: RewriteProfile.Latitude
+    ) -> Refusal? {
         let kept = words(polished)
         let spoken = words(raw)
-        guard !kept.isEmpty, !spoken.isEmpty else { return false }
+        guard !kept.isEmpty, !spoken.isEmpty else { return .wrongLength }
 
-        guard code(of: polished) == code(of: raw) else { return false }
+        guard code(of: polished) == code(of: raw) else { return .differentLanguage }
 
-        let bounds = style.lengthBounds
+        let bounds = latitude.lengthBounds
         guard kept.count * 100 >= spoken.count * bounds.low,
             kept.count * 100 <= spoken.count * bounds.high + 200
-        else { return false }
+        else { return .wrongLength }
 
-        guard figures(in: polished).isSuperset(of: figures(in: raw)) else { return false }
+        guard figures(in: polished).isSuperset(of: figures(in: raw)) else { return .figuresChanged }
 
         let said = Set(spoken.map(normalised))
         let survivors = kept.filter { said.contains(normalised($0)) }.count
-        return survivors * 100 >= kept.count * style.overlapFloor
+        guard survivors * 100 >= kept.count * latitude.overlapFloor else {
+            return .tooLittleInCommon
+        }
+        return nil
     }
 
     /// Every run of digits in the text. "R$ 1.500" and "15h30" both matter, and
@@ -238,152 +286,41 @@ final class Rambler {
     private static func normalised(_ word: String) -> String {
         word.lowercased().filter { $0.isLetter || $0.isNumber }
     }
-
 }
 
-extension Rambler {
-    /// How far the model may go, from barely touching the words to replacing
-    /// them.
-    ///
-    /// One control rather than two, because "how much cleanup" and "which
-    /// register" are the same question asked twice: both are asking how much
-    /// licence the model has. Split into a tier picker and a tone picker they
-    /// would have produced eighteen combinations, most of which mean nothing
-    /// ("light cleanup, but formal").
-    ///
-    /// The line that matters runs between `aggressive` and `formal`. Above it
-    /// every word in the result was spoken, and the guard can insist on that.
-    /// Below it the wording is meant to change, so the guard has to protect
-    /// something else: the facts, the numbers and the language.
-    enum Style: String, CaseIterable, Identifiable, Sendable {
-        /// Filler words, false starts, and corrections said out loud.
-        ///
-        /// There is no lighter tier than this. One was tried: "remove only the
-        /// filler words, change nothing else", in three phrasings including one
-        /// that listed the words to delete. The model returned the text
-        /// untouched every time, and an option that does nothing is worse than
-        /// an option that is not offered.
-        case balanced
-        /// The above, plus rambling reorganised into sentences.
-        case aggressive
-        /// Rewrites, where the words are allowed to change.
-        case formal
-        case casual
-        case concise
+extension Rambler.Refusal: Equatable {}
 
-        var id: String { rawValue }
-
-        /// Whether the words themselves may change.
-        var isRewrite: Bool {
-            switch self {
-            case .balanced, .aggressive: return false
-            case .formal, .casual, .concise: return true
-            }
-        }
-
-        var label: String {
-            switch self {
-            case .balanced:
-                return String(localized: "Balanced", comment: "Rambler: the default amount of cleanup")
-            case .aggressive:
-                return String(localized: "Aggressive", comment: "Rambler: also reorganise rambling")
-            case .formal:
-                return String(localized: "Formal", comment: "Rambler: rewrite formally")
-            case .casual:
-                return String(localized: "Casual", comment: "Rambler: rewrite casually")
-            case .concise:
-                return String(localized: "Shorter", comment: "Rambler: rewrite in fewer words")
-            }
-        }
-
-        var summary: String {
-            switch self {
-            case .balanced:
-                return String(
-                    localized: "Filler words and false starts go, and a correction you said out loud replaces what it corrected.",
-                    comment: "Rambler style explanation")
-            case .aggressive:
-                return String(
-                    localized: "The same, and rambling is reorganised into clear sentences. Repeating yourself gets tidied away.",
-                    comment: "Rambler style explanation")
-            case .formal:
-                return String(
-                    localized: "Rewritten in full sentences, no slang. Every fact kept.",
-                    comment: "Rambler style explanation")
-            case .casual:
-                return String(
-                    localized: "Rewritten the way you would write to a colleague you know well.",
-                    comment: "Rambler style explanation")
-            case .concise:
-                return String(
-                    localized: "The same thing in fewer words. No fact, name or number dropped.",
-                    comment: "Rambler style explanation")
-            }
-        }
-
-        /// The paragraph handed to the model for this style.
-        var direction: String {
-            switch self {
-            case .balanced:
-                return """
-                    Remove filler words and false starts. Apply corrections the \
-                    speaker made out loud and delete what they replace; a \
-                    correction can come much later than the thing it corrects.
-                    """
-            case .aggressive:
-                return """
-                    Remove filler words and false starts. Apply corrections the \
-                    speaker made out loud and delete what they replace. Then \
-                    write what is left as clean, direct sentences, in the order \
-                    that reads best, as though the person had written it rather \
-                    than said it. You may drop a point they made twice, but \
-                    never one they made once.
-                    """
-            case .formal:
-                return """
-                    Clean it up, then rewrite it in a formal register: full \
-                    sentences, no slang, polite without being stiff.
-                    """
-            case .casual:
-                return """
-                    Clean it up, then rewrite it casually: relaxed and \
-                    conversational, the way you would write to a colleague you \
-                    know well.
-                    """
-            case .concise:
-                // Leading with the action. "Clean it up, then say it in fewer
-                // words" and "aim for half as many words" both came back
-                // verbatim, all fifty-eight of them; this phrasing cut the same
-                // input to twenty-three.
-                return """
-                    Summarise it into the fewest words that still carry every \
-                    fact, name, number and request. Merging points the speaker \
-                    repeated is required. The result must be much shorter than \
-                    the input.
-                    """
-            }
-        }
-
-        /// What the guard will tolerate, as a fraction of the words spoken.
-        var lengthBounds: (low: Int, high: Int) {
-            switch self {
-            case .balanced: return (45, 115)
-            case .aggressive: return (32, 115)
-            case .formal, .casual: return (40, 175)
-            case .concise: return (22, 105)
-            }
-        }
-
-        /// How much of the result has to be words that were actually spoken.
-        var overlapFloor: Int {
-            switch self {
-            case .balanced: return 70
-            case .aggressive: return 58
-            // A rewrite is meant to change words, so overlap says little. It is
-            // kept above zero only to catch a reply that is about something
-            // else entirely.
-            case .formal, .casual, .concise: return 20
-            }
+extension Rambler.Refusal {
+    /// Said plainly, because the test area exists so someone can fix their own
+    /// prompt, and "rejected" on its own tells them nothing about how.
+    var explanation: String {
+        switch self {
+        case .unavailable:
+            return String(
+                localized: "Apple Intelligence is not available, so nothing was changed.",
+                comment: "Why a rewrite was not used")
+        case .tooShort:
+            return String(
+                localized: "Too short to be worth rewriting.",
+                comment: "Why a rewrite was not used")
+        case .differentLanguage:
+            return String(
+                localized: "Came back in a different language, so it was discarded.",
+                comment: "Why a rewrite was not used")
+        case .wrongLength:
+            return String(
+                localized: "Length changed too much for this setting, so it was discarded.",
+                comment: "Why a rewrite was not used")
+        case .figuresChanged:
+            return String(
+                localized: "A number went missing or changed, so it was discarded.",
+                comment: "Why a rewrite was not used")
+        case .tooLittleInCommon:
+            return String(
+                localized: "Too little of it was what you actually said, so it was discarded.",
+                comment: "Why a rewrite was not used")
+        case .failed(let message):
+            return message
         }
     }
 }
