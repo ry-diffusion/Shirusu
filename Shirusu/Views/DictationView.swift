@@ -128,7 +128,6 @@ struct DictationView: View {
             }
         }
         .captureProblemAlert()
-        .onAppear { microphone = AVCaptureDevice.authorizationStatus(for: .audio) }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .background(Ink.canvas)

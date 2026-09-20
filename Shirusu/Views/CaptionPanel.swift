@@ -117,10 +117,18 @@ final class CaptionPanel {
             context.timingFunction = Self.settle
             panel.animator().alphaValue = 0
             panel.animator().setFrame(origin.offsetBy(dx: 0, dy: -14), display: true)
-        } completionHandler: {
-            panel.orderOut(nil)
-            panel.setFrame(origin, display: false)
-            panel.alphaValue = 1
+        } completionHandler: { [weak self] in
+            // Run on the main thread, which is where the animation was started.
+            MainActor.assumeIsolated {
+                // Something may have asked for the bar again during the third
+                // of a second this took to leave. If it did, it is mid-entrance
+                // now, and ordering it out from under itself left a panel that
+                // believed it was visible and so refused to come back.
+                guard self?.isVisible != true else { return }
+                panel.orderOut(nil)
+                panel.setFrame(origin, display: false)
+                panel.alphaValue = 1
+            }
         }
     }
 

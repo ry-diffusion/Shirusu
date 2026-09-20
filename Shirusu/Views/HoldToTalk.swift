@@ -54,6 +54,11 @@ struct HoldToTalk: View {
                 .onEnded { _ in
                     guard isHeld else { return }
                     isHeld = false
+                    // Only finish a run this button actually started. Live
+                    // captions hold the one session too, and without this a
+                    // tap here stopped them — leaving the switch on over a bar
+                    // showing nothing. The Globe key has always checked.
+                    guard app.activity.state == .dictating else { return }
                     guard let session = app.session, session.phase.isBusy else {
                         app.activity.move(to: .idle)
                         app.captions.hide(after: 0.6)

@@ -96,11 +96,19 @@ final class GlobeHotkeyMonitor {
                 place: .headInsertEventTap,
                 options: .listenOnly,
                 eventsOfInterest: mask,
-                callback: { _, _, event, context in
+                callback: { _, type, event, context in
                     guard let context else { return Unmanaged.passUnretained(event) }
                     let monitor = Unmanaged<GlobeHotkeyMonitor>
                         .fromOpaque(context)
                         .takeUnretainedValue()
+                    // The system switches a tap off if its callback is ever
+                    // too slow to answer, and nothing turns it back on. The
+                    // Globe key would simply stop working, with no way back
+                    // but relaunching and no sign of why.
+                    if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                        MainActor.assumeIsolated { monitor.rearm() }
+                        return Unmanaged.passUnretained(event)
+                    }
                     let isDown = event.flags.contains(.maskSecondaryFn)
                     // The tap is attached to the main run loop, so this callback
                     // is already on the main thread.
@@ -133,6 +141,20 @@ final class GlobeHotkeyMonitor {
         source = nil
         isHeld = false
         availability = .off
+    }
+
+    /// Puts the tap back after the system switched it off.
+    ///
+    /// Whatever the key was doing at the time is over, and the tap missed the
+    /// release, so the held state is dropped rather than left stuck down.
+    private func rearm() {
+        guard let tap else { return }
+        log.error("Globe key tap was disabled by the system; switching it back on")
+        if isHeld {
+            isHeld = false
+            onRelease?()
+        }
+        CGEvent.tapEnable(tap: tap, enable: true)
     }
 
     private func handle(isDown: Bool) {
