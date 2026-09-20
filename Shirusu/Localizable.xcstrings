@@ -2589,6 +2589,46 @@
           }
         }
       }
+    },
+    "Save audio…" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salvar áudio…"
+          }
+        }
+      }
+    },
+    "WAV — every sample kept" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WAV — todas as amostras"
+          }
+        }
+      }
+    },
+    "M4A — smaller file" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "M4A — arquivo menor"
+          }
+        }
+      }
+    },
+    "Shirusu could not package that audio for saving." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Shirusu não conseguiu empacotar esse áudio para salvar."
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

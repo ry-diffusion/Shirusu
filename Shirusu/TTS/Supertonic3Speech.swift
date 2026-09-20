@@ -75,6 +75,31 @@ final class SpeechSession {
     var phase: Phase = .idle
     var downloadFraction = 0.0
 
+    /// The last thing it made, kept so it can be saved.
+    ///
+    /// A synthesis that took a minute should not have to be run again to keep
+    /// the result, and a copied voice never comes out quite the same twice —
+    /// so the take that was worth keeping is the one you just heard.
+    private(set) var lastTake: SpeechTake?
+
+    nonisolated struct SpeechTake: Sendable {
+        let samples: [Float]
+        let sampleRate: Int
+        /// What the voice was asked to say, which is the only thing to hand
+        /// that works as a name.
+        let text: String
+
+        var suggestedName: String {
+            let words = text
+                .split(whereSeparator: \.isWhitespace)
+                .prefix(6)
+                .map { $0.filter { $0.isLetter || $0.isNumber } }
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+            return words.isEmpty ? String(localized: "Voice") : String(words.prefix(48))
+        }
+    }
+
     @ObservationIgnored private let engine = SpeechEngine()
     @ObservationIgnored private var run = 0
     @ObservationIgnored private var synthesisTask: Task<Void, Never>?
@@ -119,6 +144,9 @@ final class SpeechSession {
         }
 
         stop()
+        // Cleared here rather than in `stop`, so pressing stop during playback
+        // keeps what was just made instead of throwing it away.
+        lastTake = nil
         run &+= 1
         let thisRun = run
         downloadFraction = 0
@@ -159,7 +187,10 @@ final class SpeechSession {
                 )
 
                 guard !Task.isCancelled, run == thisRun else { return }
-                try player.play(audio)
+                lastTake = SpeechTake(
+                    samples: audio.samples, sampleRate: audio.sampleRate, text: text)
+                try player.play(
+                    WavEncoder.data(samples: audio.samples, sampleRate: audio.sampleRate))
                 phase = .playing
             } catch is CancellationError {
                 // A later request owns the player now.
@@ -865,8 +896,7 @@ private final class SpeechPlayer: NSObject, AVAudioPlayerDelegate {
         self.didFinish = didFinish
     }
 
-    func play(_ audio: SpeechAudio) throws {
-        let data = WavEncoder.data(samples: audio.samples, sampleRate: audio.sampleRate)
+    func play(_ data: Data) throws {
         let player = try AVAudioPlayer(data: data)
         player.delegate = self
         player.prepareToPlay()

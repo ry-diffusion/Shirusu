@@ -17,6 +17,7 @@ struct TextToSpeechView: View {
     @State private var voice: SpeechSession.Voice = .m1
     @State private var mlxAudio = MLXAudioControls()
     @State private var isManagingVoices = false
+    @State private var exporting: AudioExport?
     @State private var voiceDescription = ""
     @State private var cloning: CloningEngine = .quick
     /// Kept apart from `voiceDescription`: there it defines the voice, here it
@@ -113,6 +114,15 @@ struct TextToSpeechView: View {
         // other one go even though nothing has been pressed yet.
         .onChange(of: cloning) { app.speech.prepare(for: backend, cloning: cloning) }
         .onDisappear { app.speech.stop() }
+        .fileExporter(
+            isPresented: Binding(
+                get: { exporting != nil },
+                set: { if !$0 { exporting = nil } }
+            ),
+            document: exportDocument,
+            contentType: exporting?.contentType ?? .wav,
+            defaultFilename: app.speech.lastTake?.suggestedName
+        ) { _ in exporting = nil }
         .sheet(isPresented: $isManagingVoices) {
             VoiceProfilesView(language: language).environment(app)
         }
@@ -285,6 +295,14 @@ struct TextToSpeechView: View {
     /// half off the edge. Transcribe has always kept its actions up here.
     @ToolbarContentBuilder
     private var toolbarItems: some ToolbarContent {
+        ToolbarItem {
+            Menu("Save audio…", systemImage: "square.and.arrow.down") {
+                ForEach(AudioExport.allCases) { format in
+                    Button(format.label) { exporting = format }
+                }
+            }
+            .disabled(app.speech.lastTake == nil)
+        }
         ToolbarItemGroup(placement: .primaryAction) {
             if app.speech.phase.isBusy {
                 // What it is busy with is in the activity strip, which says so
@@ -347,6 +365,12 @@ struct TextToSpeechView: View {
                 RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
                     .fill(.primary.opacity(0.045))
             }
+    }
+
+    private var exportDocument: SpeechDocument? {
+        guard let take = app.speech.lastTake, let exporting else { return nil }
+        return SpeechDocument(
+            samples: take.samples, sampleRate: take.sampleRate, format: exporting)
     }
 
     private var needsReference: Bool { backend == .mlxAudio }
