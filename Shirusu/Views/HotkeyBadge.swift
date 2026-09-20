@@ -13,33 +13,33 @@ struct HotkeyBadge: View {
         switch app.hotkey.availability {
         case .active where app.hotkey.isGlobeKeyFree:
             Label("Ready", systemImage: "checkmark.circle.fill")
-                .font(.system(size: 12, weight: .medium))
+                .font(Typeface.secondary.weight(.medium))
                 .foregroundStyle(Ink.accent)
 
         case .active:
             // Watching works, but macOS will swallow the press first.
             VStack(alignment: .leading, spacing: 6) {
                 Label("macOS is using the Globe key", systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(Typeface.secondary.weight(.medium))
                     .foregroundStyle(.orange)
                 Text("Set “Press 🌐 to” to “Do Nothing” in Keyboard settings and the key is yours.")
-                    .font(.system(size: 11))
+                    .font(Typeface.caption)
                     .foregroundStyle(.secondary)
                 Button("Open Keyboard settings") {
                     NSWorkspace.shared.open(
                         URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension")!)
                 }
                 .buttonStyle(.link)
-                .font(.system(size: 11))
+                .font(Typeface.caption)
             }
 
         case .needsAccessibilityPermission:
             VStack(alignment: .leading, spacing: 6) {
                 Label("Needs Accessibility permission", systemImage: "lock.fill")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(Typeface.secondary.weight(.medium))
                     .foregroundStyle(.orange)
                 Text("Reading the Globe key, and typing where your cursor is, both go through Accessibility.")
-                    .font(.system(size: 11))
+                    .font(Typeface.caption)
                     .foregroundStyle(.secondary)
                 HStack(spacing: 10) {
                     Button("Allow") { app.hotkey.requestAccessibilityPermission() }
@@ -49,12 +49,12 @@ struct HotkeyBadge: View {
                     Button("Reveal app") { app.hotkey.revealInFinder() }
                         .buttonStyle(.link)
                 }
-                .font(.system(size: 11))
+                .font(Typeface.caption)
             }
 
         case .failed:
             Label("Unavailable on this Mac", systemImage: "globe.badge.chevron.backward")
-                .font(.system(size: 12))
+                .font(Typeface.secondary)
                 .foregroundStyle(.secondary)
 
         case .off:
@@ -62,7 +62,7 @@ struct HotkeyBadge: View {
                 if !app.enableHotkey() { app.hotkey.requestAccessibilityPermission() }
             } label: {
                 Label("Turn on the Globe key", systemImage: "globe")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(Typeface.secondary.weight(.medium))
             }
             .buttonStyle(.link)
         }

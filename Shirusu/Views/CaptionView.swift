@@ -130,7 +130,7 @@ struct CaptionView: View {
             IntelligenceMark()
         } else if !isListening {
             Image(systemName: "text.bubble")
-                .font(.system(size: 13, weight: .medium))
+                .font(.system(size: Typeface.Fixed.barGlyph, weight: .medium))
                 .foregroundStyle(.white.opacity(0.62))
         }
     }
@@ -141,13 +141,13 @@ struct CaptionView: View {
             CaptionLine(transcript: session.transcript, natural: $lineWidth, slot: slot)
         } else if announcesItself, isListening {
             Text("Listening")
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: Typeface.Fixed.barWord, weight: .medium))
                 .foregroundStyle(.white.opacity(0.72))
         } else if isPreview {
             Text(app.mode == .captions
                 ? "Captions appear here while this is on"
                 : "Hold the Globe key and speak")
-                .font(.system(size: 14))
+                .font(.system(size: Typeface.Fixed.barWord))
                 .foregroundStyle(.white.opacity(0.62))
                 .lineLimit(1)
         }
@@ -188,7 +188,7 @@ private struct CaptionLine: View {
                 Text(verbatim: word.text)
                     // A notch heavier than body weight: text over a
                     // translucent surface reads thin at regular.
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: Typeface.Fixed.barWord, weight: .medium))
                     // Small type wants a touch of positive tracking; large
                     // display type wants the opposite.
                     .tracking(0.15)
@@ -300,7 +300,7 @@ private struct IntelligenceMark: View {
 
     var body: some View {
         Image(systemName: "sparkles")
-            .font(.system(size: 13, weight: .medium))
+            .font(.system(size: Typeface.Fixed.barGlyph, weight: .medium))
             .foregroundStyle(.white.opacity(0.9))
             .symbolEffect(
                 .variableColor.iterative, options: reduceMotion ? .nonRepeating : .repeating)

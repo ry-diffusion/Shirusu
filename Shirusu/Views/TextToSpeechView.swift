@@ -24,6 +24,8 @@ struct TextToSpeechView: View {
     @State private var lyricLines: [VoiceLine] = []
     @State private var advancedTab: AdvancedTab = .voiceCloning
 
+    @ScaledMetric(relativeTo: .body) private var editorSize: CGFloat = 14
+
     var body: some View {
         @Bindable var speech = app.speech
 
@@ -34,7 +36,7 @@ struct TextToSpeechView: View {
 
             Section {
                 TextEditor(text: $text)
-                    .font(.system(size: 14))
+                    .font(.system(size: editorSize))
                     .frame(minHeight: 180)
                     .scrollContentBackground(.hidden)
                     .padding(8)
@@ -88,7 +90,7 @@ struct TextToSpeechView: View {
                 Section {
                     Label(message, systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
-                        .font(.system(size: 12))
+                        .font(Typeface.secondary)
                     Button("Try again") { speech.clearFailure() }
                         .buttonStyle(.link)
                 }
@@ -134,10 +136,10 @@ struct TextToSpeechView: View {
     private var advancedCloningControls: some View {
         Section {
             Label("Heavier on your Mac", systemImage: "cpu")
-                .font(.system(size: 13, weight: .semibold))
+                .font(Typeface.body.weight(.semibold))
                 .foregroundStyle(.orange)
             Text("Copying a voice uses more memory than a ready voice. The first setup and long texts can take time; use short passages and keep Shirusu open for more stable results.")
-                .font(.system(size: 12))
+                .font(Typeface.secondary)
                 .foregroundStyle(.secondary)
             // The same two values the Song lyrics tab already names. Having
             // them be sliders here and presets there meant one thing spoke
@@ -165,7 +167,7 @@ struct TextToSpeechView: View {
         Section {
             if referenceAudio == nil {
                 Label("Choose a recording in Voice Cloning before creating the voice.", systemImage: "info.circle")
-                    .font(.system(size: 12))
+                    .font(Typeface.secondary)
                     .foregroundStyle(.secondary)
                 Button("Go to Voice Cloning") { advancedTab = .voiceCloning }
             }

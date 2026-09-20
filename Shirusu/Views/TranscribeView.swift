@@ -72,7 +72,7 @@ struct TranscribeView: View {
                 // size, so a bare Text ends up with the capsule against the
                 // letterforms. The breathing room has to come from here.
                 Text(label)
-                    .font(.system(size: 12))
+                    .font(Typeface.secondary)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .padding(.horizontal, 8)
@@ -129,7 +129,7 @@ struct TranscribeView: View {
 
             if session.phase.isBusy || session.position > 0 {
                 Text(timeLabel)
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(Typeface.secondary.monospaced())
                     .foregroundStyle(.secondary)
                     .contentTransition(.numericText())
                     .animation(Motion.settle, value: timeLabel)
@@ -176,15 +176,15 @@ private struct EmptyStage: View {
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: "waveform")
-                .font(.system(size: 34, weight: .light))
+                .font(.system(size: Typeface.Fixed.heroGlyph, weight: .light))
                 .foregroundStyle(isDropTargeted ? Ink.accent : Color.secondary)
 
             Text("Drop an audio file here")
-                .font(.system(size: 17, weight: .medium))
+                .font(Typeface.heading.weight(.medium))
                 .tracking(-0.1)
 
             Text("Everything runs on this Mac. To speak instead of opening a file, switch to Dictation.")
-                .font(.system(size: 13))
+                .font(Typeface.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 340)
@@ -218,7 +218,7 @@ private struct WarmingUpStage: View {
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: "waveform")
-                .font(.system(size: 30, weight: .light))
+                .font(.system(size: Typeface.Fixed.stageGlyph, weight: .light))
                 .foregroundStyle(Ink.accent)
                 .opacity(isBreathing ? 1 : 0.45)
                 .animation(
@@ -230,11 +230,11 @@ private struct WarmingUpStage: View {
                 .onAppear { isBreathing = true }
 
             Text("Listening")
-                .font(.system(size: 17, weight: .medium))
+                .font(Typeface.heading.weight(.medium))
                 .tracking(-0.1)
 
             Text("The first words land after a few seconds, once the model has enough context to commit.")
-                .font(.system(size: 13))
+                .font(Typeface.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 340)

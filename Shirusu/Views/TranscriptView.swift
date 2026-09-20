@@ -66,9 +66,14 @@ private struct Defocus: ViewModifier {
 private struct WordView: View {
     let word: Transcript.Word
 
+    // No text style sits at 21, and this is the surface the app exists to
+    // show, so it keeps its size and scales from it rather than rounding to
+    // the nearest style.
+    @ScaledMetric(relativeTo: .title) private var size: CGFloat = 21
+
     var body: some View {
         Text(verbatim: word.text)
-            .font(.system(size: 21, weight: .regular))
+            .font(.system(size: size, weight: .regular))
             // Long-form text wants slightly looser tracking than a headline.
             .tracking(0.1)
             .foregroundStyle(word.isSettled ? Ink.settled : Ink.volatile)

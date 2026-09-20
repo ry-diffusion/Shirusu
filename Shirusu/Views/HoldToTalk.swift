@@ -20,11 +20,11 @@ struct HoldToTalk: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: isBusy ? "waveform" : "mic.fill")
-                .font(.system(size: 13, weight: .medium))
+                .font(Typeface.body.weight(.medium))
                 .contentTransition(.symbolEffect(.replace))
 
             Text(isBusy ? "Listening, let go to finish" : "Hold to talk")
-                .font(.system(size: 13, weight: .medium))
+                .font(Typeface.body.weight(.medium))
 
             if isBusy, let session = app.session {
                 LevelMeter(level: session.level, isLive: true)

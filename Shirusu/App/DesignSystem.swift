@@ -68,6 +68,49 @@ enum Ink {
     }
 }
 
+/// One scale, built on the system's text styles.
+///
+/// Colour, radius and motion were centralised from the start; type was not, so
+/// the app grew thirteen hardcoded point sizes across seventy-odd call sites.
+/// `Font.system(size:)` is fixed at whatever number it is given, so none of
+/// them answered the text size someone sets in Accessibility. These do, and
+/// each one lands on the same point size its call site used before.
+///
+/// Named `Typeface` rather than `Type` because `Type` is how Swift spells a
+/// metatype, and a design token should not have to be read twice.
+enum Typeface {
+    /// A first-run screen's title. 22.
+    static let title = Font.title
+    /// An empty stage's headline. 17.
+    static let heading = Font.title2
+    /// One step under a screen's own title. 15.
+    static let subheading = Font.title3
+    /// Ordinary text. 13.
+    static let body = Font.body
+    /// A form's second voice: footers, explanations, a value beside a label. 12.
+    static let secondary = Font.callout
+    /// Supporting detail under a control. 11.
+    static let caption = Font.subheadline
+    /// The quietest line that is still prose. 10.
+    static let footnote = Font.footnote
+
+    /// Sizes that stay fixed, and why.
+    enum Fixed {
+        /// An SF Symbol standing in for a picture rather than sitting in a
+        /// sentence. It is sized to the space it fills, not to the text around
+        /// it, so it has no text size to track.
+        static let inlineGlyph: CGFloat = 9
+        static let stageGlyph: CGFloat = 30
+        static let heroGlyph: CGFloat = 34
+
+        /// The floating caption bar measures itself against its own text to
+        /// decide how wide to be. Until that measurement tracks the system text
+        /// size, the text must not either, or the words outgrow the panel.
+        static let barWord: CGFloat = 14
+        static let barGlyph: CGFloat = 13
+    }
+}
+
 /// Corner radii. The rule: surfaces 14, controls 10, anything pill-shaped is a capsule.
 enum Radius {
     static let surface: CGFloat = 14

@@ -30,11 +30,11 @@ struct HowItWorks: View {
             ForEach(steps) { step in
                 HStack(alignment: .firstTextBaseline, spacing: 11) {
                     Image(systemName: step.symbol)
-                        .font(.system(size: 13))
+                        .font(Typeface.body)
                         .foregroundStyle(Ink.accent)
                         .frame(width: 18)
                     Text(step.text)
-                        .font(.system(size: 13))
+                        .font(Typeface.body)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }

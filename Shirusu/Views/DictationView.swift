@@ -51,7 +51,7 @@ struct DictationView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Rambler")
                         Text("Talk the way you think. Filler words come out, and a correction you say out loud is applied to whatever it corrected.")
-                            .font(.system(size: 11))
+                            .font(Typeface.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -66,7 +66,7 @@ struct DictationView: View {
                         Text(app.modelConfig.hasGeminiAPIKey
                             ? app.modelConfig.geminiModel
                             : "API key required")
-                            .font(.system(size: 11))
+                            .font(Typeface.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -87,7 +87,7 @@ struct DictationView: View {
                     // There is nothing else to say about a profile that
                     // its instruction does not already say.
                     Text(app.profiles.selected.direction)
-                        .font(.system(size: 11))
+                        .font(Typeface.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)
@@ -121,7 +121,7 @@ struct DictationView: View {
             if let last = app.lastDictation {
                 Section("Last dictation") {
                     Text(last)
-                        .font(.system(size: 13))
+                        .font(Typeface.body)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -152,7 +152,7 @@ private struct MicrophoneRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Label("Microphone access is off", systemImage: "mic.slash.fill")
-                .font(.system(size: 12, weight: .medium))
+                .font(Typeface.secondary.weight(.medium))
                 .foregroundStyle(.orange)
             Button("Open Settings") {
                 if let url = CaptureProblem.Remedy.microphone.url {
@@ -160,7 +160,7 @@ private struct MicrophoneRow: View {
                 }
             }
             .buttonStyle(.link)
-            .font(.system(size: 11))
+            .font(Typeface.caption)
         }
     }
 }
@@ -180,7 +180,7 @@ private struct RewriteUnavailable: View {
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
-        .font(.system(size: 11))
+        .font(Typeface.caption)
         .foregroundStyle(.secondary)
     }
 
@@ -218,12 +218,12 @@ private struct LastRun: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
             Image(systemName: attempt.accepted ? "checkmark.circle.fill" : "arrow.uturn.backward.circle.fill")
-                .font(.system(size: 10))
+                .font(Typeface.footnote)
             Text(caption)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
-        .font(.system(size: 10))
+        .font(Typeface.footnote)
         .foregroundStyle(attempt.accepted ? AnyShapeStyle(Ink.accent) : AnyShapeStyle(HierarchicalShapeStyle.secondary))
         .frame(maxWidth: .infinity, alignment: .leading)
     }

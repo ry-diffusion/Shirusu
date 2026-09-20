@@ -13,12 +13,12 @@ struct ModelSetupView: View {
                 .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
 
             Text(title)
-                .font(.system(size: 22, weight: .semibold))
+                .font(Typeface.title.weight(.semibold))
                 .tracking(-0.2)
                 .padding(.top, 26)
 
             Text(subtitle)
-                .font(.system(size: 13))
+                .font(Typeface.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 380)
@@ -34,7 +34,7 @@ struct ModelSetupView: View {
                 ProgressView()
                     .controlSize(.small)
                 Text(statusLine)
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(Typeface.secondary.monospaced())
                     .foregroundStyle(.secondary)
                     .contentTransition(.numericText())
                     .animation(Motion.settle, value: statusLine)
@@ -42,7 +42,7 @@ struct ModelSetupView: View {
             .padding(.top, 12)
 
             Text("Text to Speech does not use this model, and works now.")
-                .font(.system(size: 12))
+                .font(Typeface.secondary)
                 .foregroundStyle(.secondary)
                 .padding(.top, 18)
         }
@@ -93,19 +93,21 @@ struct SetupFailureView: View {
     var message: String
     var retry: () -> Void
 
+    @ScaledMetric(relativeTo: .title2) private var titleSize: CGFloat = 19
+
     var body: some View {
         VStack(spacing: 0) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 34, weight: .light))
+                .font(.system(size: Typeface.Fixed.heroGlyph, weight: .light))
                 .foregroundStyle(.secondary)
 
             Text("Shirusu could not prepare the model")
-                .font(.system(size: 19, weight: .semibold))
+                .font(.system(size: titleSize, weight: .semibold))
                 .tracking(-0.2)
                 .padding(.top, 20)
 
             Text(message)
-                .font(.system(size: 13))
+                .font(Typeface.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 420)

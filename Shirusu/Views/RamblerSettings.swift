@@ -76,11 +76,11 @@ private struct RewriteModelSettings: View {
 
                 if settings.provider == .appleIntelligence {
                     Label("Runs entirely on this Mac. No dictated text is sent to a service.", systemImage: "lock.fill")
-                        .font(.system(size: 12))
+                        .font(Typeface.secondary)
                         .foregroundStyle(.secondary)
                 } else {
                     Label("Gemini receives the dictation and the selected profile instruction.", systemImage: "network")
-                        .font(.system(size: 12))
+                        .font(Typeface.secondary)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -93,7 +93,7 @@ private struct RewriteModelSettings: View {
 
                     HStack {
                         Text("Stored in your login Keychain")
-                            .font(.system(size: 11))
+                            .font(Typeface.caption)
                             .foregroundStyle(.secondary)
                         Spacer()
                         if !apiKey.isEmpty {
@@ -114,7 +114,7 @@ private struct RewriteModelSettings: View {
                     .pickerStyle(.menu)
 
                     Link("Create a Gemini API key", destination: URL(string: "https://aistudio.google.com/app/apikey")!)
-                        .font(.system(size: 12))
+                        .font(Typeface.secondary)
                 } header: {
                     Text("Gemini")
                 } footer: {
@@ -197,7 +197,7 @@ private struct ProfileWorkbench: View {
             if profile.id == profiles.selection {
                 Spacer()
                 Image(systemName: "checkmark")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(Typeface.footnote.weight(.semibold))
                     .foregroundStyle(Ink.accent)
             }
         }
@@ -223,9 +223,9 @@ private struct ProfileWorkbench: View {
         } else {
             VStack(spacing: 8) {
                 Text("Pick a profile")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(Typeface.subheading.weight(.medium))
                 Text("Built-in profiles can be tried here and duplicated. A copy can be edited.")
-                    .font(.system(size: 12))
+                    .font(Typeface.secondary)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 280)
@@ -250,10 +250,10 @@ private struct ProfileWorkbench: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("What it should do")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(Typeface.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                 TextEditor(text: binding(for: profile, \.direction))
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(Typeface.secondary.monospaced())
                     .frame(height: 96)
                     .scrollContentBackground(.hidden)
                     .padding(6)
@@ -267,7 +267,7 @@ private struct ProfileWorkbench: View {
                     }
                     .disabled(locked)
                 Text("Written to the model as an instruction. It is in English because the model's own instructions are, and mixing languages there is what made it translate.")
-                    .font(.system(size: 10))
+                    .font(Typeface.footnote)
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -279,14 +279,14 @@ private struct ProfileWorkbench: View {
                 .toggleStyle(.checkbox)
                 .disabled(locked)
                 Text("For a profile that expands, translates or turns dictation into something else. The checks that keep a result recognisable as what you said are turned off, because a profile like that fails all of them by working correctly.")
-                    .font(.system(size: 10))
+                    .font(Typeface.footnote)
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             if locked {
                 Label("Built in, so it cannot be edited. Duplicate it to make a version you can change.", systemImage: "lock")
-                    .font(.system(size: 10))
+                    .font(Typeface.footnote)
                     .foregroundStyle(.secondary)
             }
         }
@@ -296,11 +296,11 @@ private struct ProfileWorkbench: View {
     private func testArea(for profile: RewriteProfile) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Try it")
-                .font(.system(size: 11, weight: .medium))
+                .font(Typeface.caption.weight(.medium))
                 .foregroundStyle(.secondary)
 
             TextEditor(text: $sample)
-                .font(.system(size: 12))
+                .font(Typeface.secondary)
                 .frame(height: 64)
                 .scrollContentBackground(.hidden)
                 .padding(6)
@@ -315,7 +315,7 @@ private struct ProfileWorkbench: View {
                 .overlay(alignment: .topLeading) {
                     if sample.isEmpty {
                         Text("Type or paste something said out loud, filler words and all.")
-                            .font(.system(size: 12))
+                            .font(Typeface.secondary)
                             .foregroundStyle(.tertiary)
                             .padding(.horizontal, 11)
                             .padding(.vertical, 12)
@@ -330,7 +330,7 @@ private struct ProfileWorkbench: View {
 
                 if let attempt {
                     Text(verbatim: String(format: "%.2fs", attempt.seconds))
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(Typeface.caption.monospaced())
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -344,7 +344,7 @@ private struct ProfileWorkbench: View {
     private func result(_ attempt: Rambler.Attempt) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(attempt.output)
-                .font(.system(size: 12))
+                .font(Typeface.secondary)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(9)
@@ -359,11 +359,11 @@ private struct ProfileWorkbench: View {
             // silent fallback during a real dictation.
             if attempt.accepted {
                 Label("Would be used", systemImage: "checkmark.circle.fill")
-                    .font(.system(size: 11))
+                    .font(Typeface.caption)
                     .foregroundStyle(Ink.accent)
             } else if let refusal = attempt.refusal {
                 Label(refusal.explanation, systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 11))
+                    .font(Typeface.caption)
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -415,24 +415,24 @@ private struct VocabularyEditor: View {
                     ForEach(Vocabulary.corrections.sorted(by: { $0.key < $1.key }), id: \.key) { entry in
                         HStack {
                             Text(entry.key).foregroundStyle(.secondary)
-                            Image(systemName: "arrow.right").font(.system(size: 9)).foregroundStyle(.tertiary)
+                            Image(systemName: "arrow.right").font(.system(size: Typeface.Fixed.inlineGlyph)).foregroundStyle(.tertiary)
                             Text(entry.value)
                             Spacer()
                         }
-                        .font(.system(size: 12))
+                        .font(Typeface.secondary)
                     }
                 } header: {
                     Text("Built in")
                 } footer: {
                     Text("Every one of these is a string the recogniser actually produced.")
-                        .font(.system(size: 10))
+                        .font(Typeface.footnote)
                 }
 
                 Section("Yours") {
                     ForEach($rows) { $row in
                         HStack(spacing: 8) {
                             TextField("heard", text: $row.heard)
-                            Image(systemName: "arrow.right").font(.system(size: 9)).foregroundStyle(.tertiary)
+                            Image(systemName: "arrow.right").font(.system(size: Typeface.Fixed.inlineGlyph)).foregroundStyle(.tertiary)
                             TextField("written", text: $row.write)
                             Button {
                                 rows.removeAll { $0.id == row.id }
@@ -443,14 +443,14 @@ private struct VocabularyEditor: View {
                             .buttonStyle(.borderless)
                         }
                         .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12))
+                        .font(Typeface.secondary)
                     }
 
                     Button {
                         rows.append(Row(heard: "", write: ""))
                     } label: {
                         Label("Add a word", systemImage: "plus")
-                            .font(.system(size: 12))
+                            .font(Typeface.secondary)
                     }
                     .buttonStyle(.borderless)
                 }
@@ -458,7 +458,7 @@ private struct VocabularyEditor: View {
             .onChange(of: rows) { save() }
 
             Text("A whole word only, matched without case. It cannot paraphrase and it cannot touch a word that is not listed, which is the point: it runs before the model does, and it is the one step here that cannot invent anything.")
-                .font(.system(size: 10))
+                .font(Typeface.footnote)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
