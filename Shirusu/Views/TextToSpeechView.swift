@@ -27,6 +27,10 @@ struct TextToSpeechView: View {
 
         Form {
             Section {
+                HowItWorks(.speech)
+            }
+
+            Section {
                 TextEditor(text: $text)
                     .font(.system(size: 14))
                     .frame(minHeight: 180)

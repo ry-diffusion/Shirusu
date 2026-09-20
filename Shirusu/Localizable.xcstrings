@@ -771,7 +771,16 @@
       }
     },
     "Line" : {},
-    "Listen" : {},
+    "Listen" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvir"
+          }
+        }
+      }
+    },
     "Listen to" : {
       "localizations" : {
         "pt-BR" : {
@@ -1360,16 +1369,6 @@
     "Text to Speech" : {
       "comment" : "Mode: turn written text into spoken audio"
     },
-    "The bar floats above other apps and never takes focus, so it does not interrupt what you are doing. It keeps running while you use the rest of the app." : {
-      "localizations" : {
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A barra flutua sobre os outros apps e nunca rouba o foco, então não interrompe o que você está fazendo. Ela continua rodando enquanto você usa o resto do app."
-          }
-        }
-      }
-    },
     "The button does the same thing as the key, for when the key is not set up yet." : {
       "localizations" : {
         "pt-BR" : {
@@ -1766,6 +1765,76 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Copia a voz de uma gravação que você escolher. Acrescenta controles de interpretação e de leitura linha a linha, e usa mais memória."
+          }
+        }
+      }
+    },
+    "Turn live captions on." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ligue as legendas ao vivo."
+          }
+        }
+      }
+    },
+    "Choose whether to follow this Mac or the room." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolha se quer seguir este Mac ou a sala."
+          }
+        }
+      }
+    },
+    "A bar floats above your other apps with what it hears." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma barra flutua sobre os outros apps com o que ela ouve."
+          }
+        }
+      }
+    },
+    "Write what the voice should say." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escreva o que a voz deve dizer."
+          }
+        }
+      }
+    },
+    "Pick a ready voice, or copy one from a recording." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolha uma voz pronta, ou copie uma de uma gravação."
+          }
+        }
+      }
+    },
+    "Press Listen." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clique em Ouvir."
+          }
+        }
+      }
+    },
+    "The bar never takes focus, so it does not interrupt what you are doing, and it keeps running while you use the rest of the app." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A barra nunca toma o foco, então não interrompe o que você está fazendo, e continua rodando enquanto você usa o resto do app."
           }
         }
       }

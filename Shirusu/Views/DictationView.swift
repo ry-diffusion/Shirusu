@@ -15,7 +15,7 @@ struct DictationView: View {
 
         return Form {
             Section {
-                HowItWorks()
+                HowItWorks(.dictation)
                 HoldToTalk()
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 2)
@@ -145,30 +145,6 @@ struct DictationView: View {
 }
 
 /// Three steps, because that is genuinely all of it.
-private struct HowItWorks: View {
-    private static let steps: [(symbol: String, text: LocalizedStringKey)] = [
-        ("globe", "Hold the Globe key, wherever you are."),
-        ("waveform", "Speak. The bar shows what has been heard so far."),
-        ("text.cursor", "Let go, and the words are typed where your cursor is."),
-    ]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(Self.steps, id: \.symbol) { step in
-                HStack(alignment: .firstTextBaseline, spacing: 11) {
-                    Image(systemName: step.symbol)
-                        .font(.system(size: 13))
-                        .foregroundStyle(Ink.accent)
-                        .frame(width: 18)
-                    Text(step.text)
-                        .font(.system(size: 13))
-                }
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
 private struct MicrophoneRow: View {
     var status: AVAuthorizationStatus
     var request: () -> Void

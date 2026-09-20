@@ -16,10 +16,17 @@ struct CaptionsView: View {
 
         Form {
             Section {
+                HowItWorks(.captions)
+            }
+
+            Section {
                 preview
                 toggle
             } footer: {
-                Text("The bar floats above other apps and never takes focus, so it does not interrupt what you are doing. It keeps running while you use the rest of the app.")
+                // The floating bar itself is now described in the steps above,
+                // so this says only what they do not: that it survives you
+                // walking away from this screen.
+                Text("The bar never takes focus, so it does not interrupt what you are doing, and it keeps running while you use the rest of the app.")
             }
 
             Section {
