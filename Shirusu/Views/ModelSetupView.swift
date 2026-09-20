@@ -30,12 +30,16 @@ struct ModelSetupView: View {
                 .frame(width: 300)
                 .padding(.top, 30)
 
-            Text(statusLine)
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .contentTransition(.numericText())
-                .animation(Motion.settle, value: statusLine)
-                .padding(.top, 12)
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(statusLine)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.numericText())
+                    .animation(Motion.settle, value: statusLine)
+            }
+            .padding(.top, 12)
 
             Text("Text to Speech does not use this model, and works now.")
                 .font(.system(size: 12))
@@ -74,7 +78,8 @@ struct ModelSetupView: View {
             return String(localized: "Listing model files", comment: "Setup step")
         case .downloading(let completed, let total):
             return String(
-                localized: "Downloading \(completed) of \(total) files", comment: "Setup step")
+                localized: "Downloading Nemotron, \(completed) of \(total) files",
+                comment: "Setup step")
         case .compiling(let model):
             return String(localized: "Compiling \(model)", comment: "Setup step")
         case .loading:
