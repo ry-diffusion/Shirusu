@@ -267,8 +267,7 @@ struct TextToSpeechView: View {
             .pickerStyle(.segmented)
 
             if cloning.takesDirection {
-                TextField("How it should sound — optional", text: $cloneDirection, axis: .vertical)
-                    .lineLimit(1...3)
+                descriptionField("How it should sound — optional", text: $cloneDirection)
             }
         } header: {
             Text("Voice Cloning")
@@ -316,8 +315,7 @@ struct TextToSpeechView: View {
     @ViewBuilder
     private var voiceDesign: some View {
         Section {
-            TextField("A calm, low voice, unhurried", text: $voiceDescription, axis: .vertical)
-                .lineLimit(1...3)
+            descriptionField("Describe the voice…", text: $voiceDescription)
             Label("Heavier on your Mac", systemImage: "cpu")
                 .font(Typeface.body.weight(.semibold))
                 .foregroundStyle(.orange)
@@ -328,6 +326,27 @@ struct TextToSpeechView: View {
             // the description through the same text path as the words it says.
             Text("Say how it should sound, in the same language as your text: “a bright young voice, quick and cheerful”, or “an older man, hoarse, speaking slowly”. Nothing is recorded and no voice is copied — it is built from the description. The first use downloads a model of about 3 GB.")
         }
+    }
+
+    /// A text input that reads as one.
+    ///
+    /// A bare `TextField` in a grouped form has no chrome and draws its
+    /// placeholder at nearly the weight of real text, so an empty field looked
+    /// filled in — the more so when the placeholder was an example answer
+    /// rather than an instruction. The editor above already answers this with
+    /// a filled rounded rect; this is the same thing, a line high.
+    private func descriptionField(
+        _ prompt: LocalizedStringKey,
+        text: Binding<String>
+    ) -> some View {
+        TextField(prompt, text: text, axis: .vertical)
+            .textFieldStyle(.plain)
+            .lineLimit(1...3)
+            .padding(8)
+            .background {
+                RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
+                    .fill(.primary.opacity(0.045))
+            }
     }
 
     private var needsReference: Bool { backend == .mlxAudio }

@@ -2480,16 +2480,6 @@
         }
       }
     },
-    "A calm, low voice, unhurried" : {
-      "localizations" : {
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uma voz calma e grave, sem pressa"
-          }
-        }
-      }
-    },
     "Describe the voice you want before asking for it." : {
       "localizations" : {
         "pt-BR" : {
@@ -2586,6 +2576,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mais qualidade fala a 48 kHz em vez de 24 e aceita uma observação sobre a entrega — “cansado”, “contando história para dormir” — junto com a gravação. Baixa um modelo de uns 3 GB e demora mais para começar. Use só a sua voz ou uma voz que você tenha autorização para usar."
+          }
+        }
+      }
+    },
+    "Describe the voice…" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descreva a voz…"
           }
         }
       }
