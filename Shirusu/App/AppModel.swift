@@ -62,6 +62,7 @@ final class AppModel {
         case transcribe
         case captions
         case dictation
+        case speech
 
         var id: String { rawValue }
 
@@ -73,6 +74,8 @@ final class AppModel {
                 return String(localized: "Live Captions", comment: "Mode: caption what the Mac hears")
             case .dictation:
                 return String(localized: "Dictation", comment: "Mode: speak and have the text typed")
+            case .speech:
+                return String(localized: "Text to Speech", comment: "Mode: turn written text into spoken audio")
             }
         }
 
@@ -81,6 +84,7 @@ final class AppModel {
             case .transcribe: return "waveform"
             case .captions: return "captions.bubble"
             case .dictation: return "mic"
+            case .speech: return "speaker.wave.3"
             }
         }
 
@@ -99,6 +103,10 @@ final class AppModel {
                 return String(
                     localized: "Hold the Globe key, speak, and the words are typed where your cursor is.",
                     comment: "Subtitle for the Dictation mode")
+            case .speech:
+                return String(
+                    localized: "Write something and hear it with a local voice.",
+                    comment: "Subtitle for the Text to Speech mode")
             }
         }
 
@@ -198,6 +206,10 @@ final class AppModel {
 
     /// The rewrite profiles, built-in and the user's own.
     let profiles = RewriteProfiles()
+
+    /// Separate from dictation deliberately: it owns model download, synthesis
+    /// and output playback, while dictation only needs a microphone and text.
+    let speech = SpeechSession()
 
     /// Whether to tidy dictation before it is delivered.
     var isRambler: Bool = UserDefaults.standard.bool(forKey: AppModel.ramblerKey) {

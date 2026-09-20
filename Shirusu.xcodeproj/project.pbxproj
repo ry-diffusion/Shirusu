@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		FA03D0000000000000000003 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = FA02D0000000000000000002 /* FluidAudio */; };
+		FA06D0000000000000000006 /* ChatterboxTTS in Frameworks */ = {isa = PBXBuildFile; productRef = FA05D0000000000000000005 /* ChatterboxTTS */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +57,7 @@
 			isa = PBXFrameworksBuildPhase;
 			files = (
 				FA03D0000000000000000003 /* FluidAudio in Frameworks */,
+				FA06D0000000000000000006 /* ChatterboxTTS in Frameworks */,
 			);
 		};
 		27AF9558305EB636004060C7 /* Frameworks */ = {
@@ -110,6 +112,7 @@
 			name = Shirusu;
 			packageProductDependencies = (
 				FA02D0000000000000000002 /* FluidAudio */,
+				FA05D0000000000000000005 /* ChatterboxTTS */,
 			);
 			productName = Shirusu;
 			productReference = 27AF954C305EB634004060C7 /* Shirusu.app */;
@@ -192,6 +195,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				FA01D0000000000000000001 /* XCRemoteSwiftPackageReference "FluidAudio" */,
+				FA04D0000000000000000004 /* XCRemoteSwiftPackageReference "speech-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 27AF954D305EB634004060C7 /* Products */;
@@ -571,8 +575,16 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/FluidInference/FluidAudio.git";
 			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.12.4;
+				kind = revision;
+				revision = 87a39dfe4068fef0f1c69bfe704b2b3ef4fbc5bc;
+			};
+		};
+		FA04D0000000000000000004 /* XCRemoteSwiftPackageReference "speech-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/soniqo/speech-swift.git";
+			requirement = {
+				kind = revision;
+				revision = c4c2fabbe825a9290c19e2f45d54ca3eae96b003;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -582,6 +594,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = FA01D0000000000000000001 /* XCRemoteSwiftPackageReference "FluidAudio" */;
 			productName = FluidAudio;
+		};
+		FA05D0000000000000000005 /* ChatterboxTTS */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FA04D0000000000000000004 /* XCRemoteSwiftPackageReference "speech-swift" */;
+			productName = ChatterboxTTS;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

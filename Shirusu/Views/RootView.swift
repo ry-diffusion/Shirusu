@@ -85,6 +85,8 @@ private struct Workbench: View {
             CaptionsView()
         case .dictation:
             DictationView()
+        case .speech:
+            TextToSpeechView()
         }
     }
 }
