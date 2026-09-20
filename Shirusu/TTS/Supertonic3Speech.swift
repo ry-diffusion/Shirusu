@@ -546,7 +546,7 @@ private actor SpeechEngine {
             requests = lines.map { ($0.text, controls.adjusted(for: $0)) }
         }
 
-        let samples = try withGenerationMemoryCap { () throws -> [Float] in
+        let samples = try await withGenerationMemoryCap { () throws -> [Float] in
             // Conditioning depends on the recording, never on the text, so a
             // lyric pays for it once rather than once per line.
             let voice = conditioning(
@@ -594,11 +594,13 @@ private actor SpeechEngine {
         }
 
         willSynthesize()
-        let samples = try await model.generateVoxCPM2(
-            text: text,
-            language: language,
-            refAudio: reference,
-            instruct: direction.isEmpty ? nil : direction)
+        let samples = try await withGenerationMemoryCap {
+            try await model.generateVoxCPM2(
+                text: text,
+                language: language,
+                refAudio: reference,
+                instruct: direction.isEmpty ? nil : direction)
+        }
         return .samples(samples, sampleRate: model.sampleRate)
     }
 
@@ -629,6 +631,8 @@ private actor SpeechEngine {
         defer { voxcpmLoad = nil }
         let model = try await load.value
         voxcpm = model
+        Self.log.notice(
+            "VoxCPM2 weights resident: \(model.memoryFootprint / 1_048_576, privacy: .public) MB")
         return model
     }
 
@@ -749,8 +753,8 @@ private actor SpeechEngine {
     /// package keeps `ChatterboxMemory` internal, so the cap is reapplied here.
     /// Without it the autoregressive T3 stage grows the buffer cache unchecked
     /// across a multi-line lyric.
-    private func withGenerationMemoryCap<T>(_ body: () throws -> T) rethrows -> T {
-        guard let cap = Self.memoryOptions.cacheLimitBytes else { return try body() }
+    private func withGenerationMemoryCap<T>(_ body: () async throws -> T) async rethrows -> T {
+        guard let cap = Self.memoryOptions.cacheLimitBytes else { return try await body() }
         let previous = Memory.cacheLimit
         Memory.cacheLimit = min(previous, max(0, cap))
         Memory.clearCache()
@@ -758,7 +762,7 @@ private actor SpeechEngine {
             Memory.cacheLimit = previous
             if Self.memoryOptions.clearCacheOnCompletion { Memory.clearCache() }
         }
-        return try body()
+        return try await body()
     }
 
     /// `drop_invalid_tokens`: keep what falls between the first SOS and the
