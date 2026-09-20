@@ -16,6 +16,8 @@ struct TextToSpeechView: View {
     @State private var language: SpeechSession.Language = .portuguese
     @State private var voice: SpeechSession.Voice = .m1
     @State private var mlxAudio = MLXAudioControls()
+    @State private var tone: VoiceLine.Tone = .natural
+    @State private var pace: VoiceLine.Pace = .normal
     @State private var referenceAudio: URL?
     @State private var isImportingReference = false
     @State private var isLyricsMode = false
@@ -137,13 +139,24 @@ struct TextToSpeechView: View {
             Text("Copying a voice uses more memory than a ready voice. The first setup and long texts can take time; use short passages and keep Shirusu open for more stable results.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
-            slider("Expressiveness", value: $mlxAudio.exaggeration, range: 0...1, step: 0.05)
-            slider("Pace", value: $mlxAudio.cfgWeight, range: 0...1, step: 0.05)
+            // The same two values the Song lyrics tab already names. Having
+            // them be sliders here and presets there meant one thing spoke
+            // with two vocabularies depending on which tab you were on.
+            Picker("Tone", selection: $tone) {
+                ForEach(VoiceLine.Tone.allCases) { tone in
+                    Text(tone.label).tag(tone)
+                }
+            }
+            Picker("Pace", selection: $pace) {
+                ForEach(VoiceLine.Pace.allCases) { pace in
+                    Text(pace.label).tag(pace)
+                }
+            }
             slider("Variation", value: $mlxAudio.temperature, range: 0.05...1.5, step: 0.05)
         } header: {
             Text("Voice delivery")
         } footer: {
-            Text("Expressiveness makes the interpretation more pronounced. Too much can speed up the speech or make it less natural. Start in the middle and adjust gradually.")
+            Text("Dramatic makes the interpretation more pronounced, and can speed the speech up or make it less natural. Variation changes how much one reading differs from the last.")
         }
     }
 
@@ -246,9 +259,14 @@ struct TextToSpeechView: View {
 
     private func requestSpeech() {
         guard !app.speech.phase.isBusy else { return }
+        // Tone and pace are presets over the same two controls the lyric lines
+        // set per line, so a lyric run overrides these on its way through.
+        var controls = mlxAudio
+        controls.exaggeration = tone.exaggeration
+        controls.cfgWeight = pace.cfgWeight
         app.speech.speak(
             text: text, backend: backend, language: language, voice: voice,
-            mlxAudio: mlxAudio,
+            mlxAudio: controls,
             referenceAudio: needsReference ? referenceAudio : nil,
             lyricLines: isLyricsMode ? lyricLines : []
         )
