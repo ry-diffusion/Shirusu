@@ -150,11 +150,15 @@ final class GlobeHotkeyMonitor {
     private func rearm() {
         guard let tap else { return }
         log.error("Globe key tap was disabled by the system; switching it back on")
-        if isHeld {
-            isHeld = false
-            onRelease?()
-        }
+        // Back on first, so nothing else is missed while the run below is
+        // being wound up.
         CGEvent.tapEnable(tap: tap, enable: true)
+        guard isHeld else { return }
+        // The release that would have ended this never reached us, and the
+        // one that does arrive will look like no change at all. Finish the run
+        // here on what was heard, rather than leave it for the watchdog.
+        isHeld = false
+        onRelease?()
     }
 
     private func handle(isDown: Bool) {
