@@ -40,7 +40,14 @@ nonisolated struct FileFeed: AudioFeed {
         let frames = AudioFormats.chunkFrames
         let multiplier = pace.multiplier
 
-        return AsyncThrowingStream { continuation in
+        // Bounded on purpose. A microphone paces itself, so an unbounded queue
+        // behind one never fills; "Fast" has nothing holding it back and would
+        // push an hour of audio into the queue as quickly as it can slice it,
+        // however slowly the recogniser is draining. `bufferingOldest` keeps
+        // what is already queued and hands the newest chunk back instead of
+        // silently dropping one, which is what makes the retry below safe.
+        return AsyncThrowingStream(bufferingPolicy: .bufferingOldest(Self.lookahead)) {
+            continuation in
             let task = Task {
                 var offset = 0
                 // Pace against a fixed origin rather than sleeping a fixed amount
@@ -52,13 +59,26 @@ nonisolated struct FileFeed: AudioFeed {
                     let position = Double(offset) / Double(AudioFormats.sampleRate)
 
                     if let buffer = AudioDecoder.makeBuffer(samples[offset..<end]) {
-                        continuation.yield(
-                            AudioChunk(
-                                buffer: buffer,
-                                peak: AudioChunk.peakMagnitude(of: buffer),
-                                position: position
-                            )
+                        let chunk = AudioChunk(
+                            buffer: buffer,
+                            peak: AudioChunk.peakMagnitude(of: buffer),
+                            position: position
                         )
+                        // Offer it again rather than lose it. Nothing here is
+                        // live, so waiting for the reader costs only time.
+                        var queued = false
+                        while !queued, !Task.isCancelled {
+                            switch continuation.yield(chunk) {
+                            case .enqueued:
+                                queued = true
+                            case .dropped:
+                                try? await Task.sleep(for: .milliseconds(5))
+                            case .terminated:
+                                return
+                            @unknown default:
+                                queued = true
+                            }
+                        }
                     }
                     offset = end
 
@@ -77,4 +97,8 @@ nonisolated struct FileFeed: AudioFeed {
             continuation.onTermination = { _ in task.cancel() }
         }
     }
+
+    /// Six seconds of audio in hand, which is far more than any reader here is
+    /// ever behind by and small enough to be beneath notice.
+    private static let lookahead = 60
 }
