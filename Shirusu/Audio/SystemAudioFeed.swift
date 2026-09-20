@@ -69,6 +69,22 @@ private nonisolated final class TapSession: @unchecked Sendable {
     private let queue = DispatchQueue(label: "br.com.zesmoi.Shirusu.systemaudio")
 
     init() throws {
+        var tap = AudioObjectID(kAudioObjectUnknown)
+        var device = AudioObjectID(kAudioObjectUnknown)
+        var isBuilt = false
+
+        // Nothing else would ever give these back. `format` is assigned last,
+        // so a throw before it leaves the object partly initialised — and Swift
+        // does not run `deinit` on one of those. The tap and the aggregate
+        // device would have outlived the app's knowledge of them, sitting in
+        // coreaudiod until the process ended.
+        defer {
+            if !isBuilt {
+                if device != kAudioObjectUnknown { AudioHardwareDestroyAggregateDevice(device) }
+                if tap != kAudioObjectUnknown { AudioHardwareDestroyProcessTap(tap) }
+            }
+        }
+
         // A global tap: every process, mixed to mono, and not muted — the user
         // still hears what they are playing.
         let description = CATapDescription(stereoGlobalTapButExcludeProcesses: [])
@@ -78,7 +94,6 @@ private nonisolated final class TapSession: @unchecked Sendable {
         description.isMono = true
         description.isMixdown = true
 
-        var tap = AudioObjectID(kAudioObjectUnknown)
         try SystemAudioError.check(
             AudioHardwareCreateProcessTap(description, &tap), "creating the tap")
         tapID = tap
@@ -94,7 +109,6 @@ private nonisolated final class TapSession: @unchecked Sendable {
             kAudioAggregateDeviceSubDeviceListKey: [] as [Any],
             kAudioAggregateDeviceTapListKey: [[kAudioSubTapUIDKey: uid]],
         ]
-        var device = AudioObjectID(kAudioObjectUnknown)
         try SystemAudioError.check(
             AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &device),
             "creating the aggregate device")
@@ -105,7 +119,13 @@ private nonisolated final class TapSession: @unchecked Sendable {
             throw SystemAudioError.unusableFormat
         }
         self.format = format
+        isBuilt = true
     }
+
+    /// The backstop for a session that is dropped without anyone saying so.
+    /// `tearDown` is idempotent, so the ordinary path calling it first costs
+    /// nothing here.
+    deinit { tearDown() }
 
     func start(_ onBuffer: @escaping @Sendable (AVAudioPCMBuffer) -> Void) throws {
         let format = self.format
@@ -173,13 +193,19 @@ private nonisolated final class TapSession: @unchecked Sendable {
         throws -> String
     {
         var property = address(selector)
-        var size = UInt32(MemoryLayout<CFString>.stride)
-        var value: CFString = "" as CFString
-        let status = withUnsafeMutablePointer(to: &value) {
-            AudioObjectGetPropertyData(object, &property, 0, nil, &size, $0)
-        }
+        // Core Audio hands back a +1 CFString here, so it is taken as retained.
+        // Writing into a managed `CFString` variable through a raw pointer,
+        // which is what this used to do, overwrites a reference ARC is still
+        // accounting for and hands ownership of the new one to nobody.
+        var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        var value: Unmanaged<CFString>?
+        let status = AudioObjectGetPropertyData(object, &property, 0, nil, &size, &value)
         try SystemAudioError.check(status, "reading the tap identifier")
-        return value as String
+        guard let text = value?.takeRetainedValue() as String? else {
+            throw SystemAudioError.failed(
+                stage: "reading the tap identifier", status: kAudioHardwareUnspecifiedError)
+        }
+        return text
     }
 
     private static func streamDescription(from tap: AudioObjectID) throws
