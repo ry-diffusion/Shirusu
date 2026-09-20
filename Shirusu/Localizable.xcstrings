@@ -1945,16 +1945,6 @@
         }
       }
     },
-    "Write a sentence, script, or lyrics. To read lyrics line by line, copy a voice below." : {
-      "localizations" : {
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Escreva uma frase, um roteiro ou uma letra. Para ler uma letra linha a linha, copie uma voz abaixo."
-          }
-        }
-      }
-    },
     "Write something and hear it with a local voice." : {
       "comment" : "Subtitle for the Text to Speech mode"
     },
@@ -2466,6 +2456,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A gravação está em silêncio do início ao fim. Confira se a entrada certa está selecionada, e se um fone Bluetooth já terminou de trocar para o microfone dele — essa troca leva alguns segundos e engole o que for dito nela."
+          }
+        }
+      }
+    },
+    "Describe a voice" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descrever uma voz"
+          }
+        }
+      }
+    },
+    "The voice" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A voz"
+          }
+        }
+      }
+    },
+    "A calm, low voice, unhurried" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma voz calma e grave, sem pressa"
+          }
+        }
+      }
+    },
+    "Describe the voice you want before asking for it." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descreva a voz que você quer antes de pedir por ela."
+          }
+        }
+      }
+    },
+    "Describing a voice needs a description of one." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descrever uma voz exige uma descrição dela."
+          }
+        }
+      }
+    },
+    "Say how it should sound, in the same language as your text: “a bright young voice, quick and cheerful”, or “an older man, hoarse, speaking slowly”. Nothing is recorded and no voice is copied — it is built from the description. The first use downloads a model of about 3 GB." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diga como ela deve soar, no mesmo idioma do seu texto: “uma voz jovem e clara, rápida e animada”, ou “um homem mais velho, rouco, falando devagar”. Nada é gravado e nenhuma voz é copiada — ela é construída a partir da descrição. O primeiro uso baixa um modelo de uns 3 GB."
+          }
+        }
+      }
+    },
+    "Builds a voice from a description of one, with no recording involved. The largest of the three, and the only one that can invent a voice rather than copy or replay one." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Constrói uma voz a partir de uma descrição dela, sem gravação nenhuma. O maior dos três, e o único que inventa uma voz em vez de copiar ou repetir uma."
+          }
+        }
+      }
+    },
+    "Write a sentence, script, or lyrics. To read lyrics line by line, copy a voice below; to invent one, describe it." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escreva uma frase, um roteiro ou uma letra. Para ler uma letra linha a linha, copie uma voz abaixo; para inventar uma, descreva ela."
           }
         }
       }

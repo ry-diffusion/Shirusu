@@ -17,6 +17,7 @@ struct TextToSpeechView: View {
     @State private var voice: SpeechSession.Voice = .m1
     @State private var mlxAudio = MLXAudioControls()
     @State private var isManagingVoices = false
+    @State private var voiceDescription = ""
     @State private var isLyricsMode = false
     @State private var lyricLines: [VoiceLine] = []
     @State private var advancedTab: AdvancedTab = .voiceCloning
@@ -45,7 +46,7 @@ struct TextToSpeechView: View {
             } header: {
                 Text("What should the voice say?")
             } footer: {
-                Text("Write a sentence, script, or lyrics. To read lyrics line by line, copy a voice below.")
+                Text("Write a sentence, script, or lyrics. To read lyrics line by line, copy a voice below; to invent one, describe it.")
             }
 
             Section {
@@ -81,6 +82,10 @@ struct TextToSpeechView: View {
 
             if backend == .mlxAudio {
                 advancedWorkspace
+            }
+
+            if backend == .voiceDesign {
+                voiceDesign
             }
 
             if case .failed(let message) = speech.phase {
@@ -277,8 +282,30 @@ struct TextToSpeechView: View {
     }
 
     private var cannotSpeak: Bool {
-        text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || (backend == .mlxAudio && referenceAudio == nil)
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return true }
+        switch backend {
+        case .supertonic3: return false
+        case .mlxAudio: return referenceAudio == nil
+        case .voiceDesign:
+            return voiceDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    @ViewBuilder
+    private var voiceDesign: some View {
+        Section {
+            TextField("A calm, low voice, unhurried", text: $voiceDescription, axis: .vertical)
+                .lineLimit(1...3)
+            Label("Heavier on your Mac", systemImage: "cpu")
+                .font(Typeface.body.weight(.semibold))
+                .foregroundStyle(.orange)
+        } header: {
+            Text("The voice")
+        } footer: {
+            // Written in whatever language the text is, because the model reads
+            // the description through the same text path as the words it says.
+            Text("Say how it should sound, in the same language as your text: “a bright young voice, quick and cheerful”, or “an older man, hoarse, speaking slowly”. Nothing is recorded and no voice is copied — it is built from the description. The first use downloads a model of about 3 GB.")
+        }
     }
 
     private var needsReference: Bool { backend == .mlxAudio }
@@ -309,6 +336,7 @@ struct TextToSpeechView: View {
             text: text, backend: backend, language: language, voice: voice,
             mlxAudio: mlxAudio,
             referenceAudio: needsReference ? referenceAudio : nil,
+            voiceDescription: voiceDescription,
             lyricLines: isLyricsMode ? lyricLines : []
         )
     }
@@ -318,6 +346,7 @@ struct TextToSpeechView: View {
         switch backend {
         case .supertonic3: String(localized: "Ten voices, ready to speak. The one you pick downloads once and then works on this Mac.")
         case .mlxAudio: String(localized: "Copies the voice from a recording you choose. It adds controls for delivery and for reading lyrics line by line, and uses more memory.")
+        case .voiceDesign: String(localized: "Builds a voice from a description of one, with no recording involved. The largest of the three, and the only one that can invent a voice rather than copy or replay one.")
         }
     }
 

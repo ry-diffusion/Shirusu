@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		FA03D0000000000000000003 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = FA02D0000000000000000002 /* FluidAudio */; };
 		FA06D0000000000000000006 /* ChatterboxTTS in Frameworks */ = {isa = PBXBuildFile; productRef = FA05D0000000000000000005 /* ChatterboxTTS */; };
+		FA08D0000000000000000008 /* VoxCPM2TTS in Frameworks */ = {isa = PBXBuildFile; productRef = FA07D0000000000000000007 /* VoxCPM2TTS */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,6 +59,7 @@
 			files = (
 				FA03D0000000000000000003 /* FluidAudio in Frameworks */,
 				FA06D0000000000000000006 /* ChatterboxTTS in Frameworks */,
+				FA08D0000000000000000008 /* VoxCPM2TTS in Frameworks */,
 			);
 		};
 		27AF9558305EB636004060C7 /* Frameworks */ = {
@@ -113,6 +115,7 @@
 			packageProductDependencies = (
 				FA02D0000000000000000002 /* FluidAudio */,
 				FA05D0000000000000000005 /* ChatterboxTTS */,
+				FA07D0000000000000000007 /* VoxCPM2TTS */,
 			);
 			productName = Shirusu;
 			productReference = 27AF954C305EB634004060C7 /* Shirusu.app */;
@@ -599,6 +602,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = FA04D0000000000000000004 /* XCRemoteSwiftPackageReference "speech-swift" */;
 			productName = ChatterboxTTS;
+		};
+		FA07D0000000000000000007 /* VoxCPM2TTS */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FA04D0000000000000000004 /* XCRemoteSwiftPackageReference "speech-swift" */;
+			productName = VoxCPM2TTS;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -3,8 +3,10 @@ import AudioCommon
 import ChatterboxTTS
 import FluidAudio
 import Foundation
+import OSLog
 import MLX
 import Observation
+import VoxCPM2TTS
 
 /// A small, UI-facing wrapper around FluidAudio's local TTS pipelines.
 ///
@@ -97,6 +99,7 @@ final class SpeechSession {
         voice: Voice,
         mlxAudio: MLXAudioControls,
         referenceAudio: URL?,
+        voiceDescription: String,
         lyricLines: [VoiceLine]
     ) {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -106,6 +109,11 @@ final class SpeechSession {
         }
         guard backend != .mlxAudio || referenceAudio != nil else {
             phase = .failed(String(localized: "Choose a recording before copying a voice."))
+            return
+        }
+        let voiceDescription = voiceDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard backend != .voiceDesign || !voiceDescription.isEmpty else {
+            phase = .failed(String(localized: "Describe the voice you want before asking for it."))
             return
         }
 
@@ -132,6 +140,7 @@ final class SpeechSession {
                     voice: Supertonic3Voice(rawValue: voice.rawValue) ?? .default,
                     mlxAudio: mlxAudio,
                     referenceAudio: localReference,
+                    voiceDescription: voiceDescription,
                     lyricLines: lyricLines,
                     progress: { [weak self] update in
                         Task { @MainActor [weak self] in
@@ -197,13 +206,15 @@ final class SpeechSession {
     }
 }
 
-/// The two things someone can ask for, named by the result rather than by the
-/// model behind it: ten voices that are ready to speak, or their own voice
-/// copied from a recording. Both cover every language the app offers, so
-/// choosing one never changes what else is on the screen.
+/// The three things someone can ask for, named by the result rather than by
+/// the model behind it: a voice that is ready to speak, their own voice copied
+/// from a recording, or a voice built from a description of it. All three cover
+/// every language the app offers, so choosing one never changes what else is on
+/// the screen.
 enum SpeechBackend: String, CaseIterable, Identifiable, Sendable {
     case supertonic3
     case mlxAudio
+    case voiceDesign
 
     var id: String { rawValue }
 
@@ -211,8 +222,14 @@ enum SpeechBackend: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .supertonic3: String(localized: "A ready voice")
         case .mlxAudio: String(localized: "Copy a voice from a recording")
+        case .voiceDesign: String(localized: "Describe a voice")
         }
     }
+
+    /// Whether this one holds a multi-gigabyte model of its own. Two of them
+    /// resident at once is more than a Mac should be asked to carry for a
+    /// feature nobody is using at that moment.
+    var isHeavy: Bool { self != .supertonic3 }
 }
 
 /// These map one-to-one to speech-swift's native Chatterbox MLX clone API.
@@ -327,11 +344,26 @@ private struct SpeechAudio: Sendable {
 /// downloads the compact variant and leaves the Neural Engine free of the
 /// dynamic-shape CPU/GPU fallback used by the upstream default.
 private actor SpeechEngine {
+    private static let log = Logger(subsystem: "br.com.zesmoi.Shirusu", category: "speech")
+
     private let supertonic = Supertonic3Manager(vectorEstimator: .aneBucketed(.int4))
     private var hasSupertonicPrepared = false
     private var supertonicStyles: [Supertonic3Voice: Supertonic3VoiceStyle] = [:]
     private var chatterboxMLX: ChatterboxTTSModel?
     private var chatterboxMLXLoad: Task<ChatterboxTTSModel, Error>?
+    private var voxcpm: VoxCPM2TTSModel?
+    private var voxcpmLoad: Task<VoxCPM2TTSModel, Error>?
+
+    /// The repos to try, in order. The first is what was asked for; the second
+    /// is what `speech-swift` is written and tested against, so it is the one
+    /// that decides whether the feature works at all.
+    ///
+    /// A first entry that downloads and then fails to load costs its download,
+    /// which is why the tested repo is not first.
+    private static let voxcpmModelIds = [
+        "mlx-community/VoxCPM2-8bit",
+        VoxCPM2TTSModel.int8ModelId,
+    ]
     private var clonedVoices: [ClonedVoice] = []
 
     /// A cached voice is a few hundred KB, so keeping the last handful costs
@@ -351,7 +383,35 @@ private actor SpeechEngine {
         case .mlxAudio:
             guard chatterboxMLX == nil, Self.hasDownloadedChatterboxMLX else { return }
             _ = try? await loadChatterboxMLX(progress: { _ in })
+        case .voiceDesign:
+            // No cheap way to ask whether these weights are already here: the
+            // repo that answers depends on which one loaded last time. Warming
+            // it would risk starting a 3 GB download from opening a tab.
+            break
         }
+    }
+
+    /// One heavy model at a time.
+    ///
+    /// Chatterbox holds around 1.7 GB and VoxCPM2 around 3.2, both promoted to
+    /// float32 on Apple Silicon, and someone switching between the two modes is
+    /// not asking to carry both at once. Chatterbox has no `unload`, so letting
+    /// go of the reference and clearing the cache is all there is; VoxCPM2 has
+    /// one and it is worth calling.
+    private func releaseModels(except backend: SpeechBackend) {
+        var freed = false
+        if backend != .mlxAudio, chatterboxMLX != nil {
+            chatterboxMLX = nil
+            // These hold MLXArrays built by the model that is going away.
+            clonedVoices.removeAll()
+            freed = true
+        }
+        if backend != .voiceDesign, let voxcpm {
+            voxcpm.unload()
+            self.voxcpm = nil
+            freed = true
+        }
+        if freed { Memory.clearCache() }
     }
 
     func synthesize(
@@ -361,6 +421,7 @@ private actor SpeechEngine {
         voice: Supertonic3Voice,
         mlxAudio: MLXAudioControls,
         referenceAudio: URL?,
+        voiceDescription: String,
         lyricLines: [VoiceLine],
         progress: @escaping ProgressHandler,
         willSynthesize: @escaping @Sendable () -> Void
@@ -369,6 +430,10 @@ private actor SpeechEngine {
         case .supertonic3:
             return try await synthesizeSupertonic(
                 text: text, language: language, voice: voice,
+                progress: progress, willSynthesize: willSynthesize)
+        case .voiceDesign:
+            return try await synthesizeVoiceDesign(
+                text: text, language: language, description: voiceDescription,
                 progress: progress, willSynthesize: willSynthesize)
         case .mlxAudio:
             guard let referenceAudio else {
@@ -460,6 +525,55 @@ private actor SpeechEngine {
         return .samples(samples, sampleRate: 24_000)
     }
 
+    /// A voice from a description of it, with no recording anywhere.
+    ///
+    /// VoxCPM2 takes the description as an instruction rather than as something
+    /// to read, which is why this is its own mode and not a field on the other
+    /// one: there is no reference here to condition on at all.
+    private func synthesizeVoiceDesign(
+        text: String,
+        language: String,
+        description: String,
+        progress: @escaping ProgressHandler,
+        willSynthesize: @escaping @Sendable () -> Void
+    ) async throws -> SpeechAudio {
+        let model = try await loadVoxCPM(progress: progress)
+        willSynthesize()
+        let samples = try await model.generateVoxCPM2(
+            text: text, language: language, instruct: description)
+        return .samples(samples, sampleRate: model.sampleRate)
+    }
+
+    private func loadVoxCPM(progress: @escaping ProgressHandler) async throws -> VoxCPM2TTSModel {
+        if let voxcpm { return voxcpm }
+        if let voxcpmLoad { return try await voxcpmLoad.value }
+
+        releaseModels(except: .voiceDesign)
+        let load = Task {
+            var lastFailure: Error?
+            for modelId in Self.voxcpmModelIds {
+                do {
+                    return try await VoxCPM2TTSModel.fromPretrained(modelId: modelId) { fraction, _ in
+                        progress(DownloadProgress(
+                            fractionCompleted: fraction,
+                            phase: .downloading(completedFiles: 0, totalFiles: 0)
+                        ))
+                    }
+                } catch {
+                    Self.log.notice(
+                        "VoxCPM2 could not load \(modelId, privacy: .public); trying the next repo")
+                    lastFailure = error
+                }
+            }
+            throw lastFailure ?? SpeechEngineError.missingVoiceDescription
+        }
+        voxcpmLoad = load
+        defer { voxcpmLoad = nil }
+        let model = try await load.value
+        voxcpm = model
+        return model
+    }
+
     /// One shared load: `preload` and a play pressed straight afterwards would
     /// otherwise both find an empty slot and read the bundle twice. Whichever
     /// call starts the load owns the progress reporting — which only matters on
@@ -469,6 +583,8 @@ private actor SpeechEngine {
     ) async throws -> ChatterboxTTSModel {
         if let chatterboxMLX { return chatterboxMLX }
         if let chatterboxMLXLoad { return try await chatterboxMLXLoad.value }
+
+        releaseModels(except: .mlxAudio)
 
         let load = Task {
             try await ChatterboxTTSModel.fromPretrained { fraction, _ in
@@ -640,12 +756,15 @@ nonisolated private struct ClonedVoice {
 
 private enum SpeechEngineError: LocalizedError {
     case missingChatterboxReference
+    case missingVoiceDescription
     case unsupportedCloneLanguage(String)
 
     var errorDescription: String? {
         switch self {
         case .missingChatterboxReference:
             return String(localized: "Copying a voice needs a recording to copy it from.")
+        case .missingVoiceDescription:
+            return String(localized: "Describing a voice needs a description of one.")
         case .unsupportedCloneLanguage(let language):
             return String(localized: "A copied voice cannot speak \(language) yet.")
         }
