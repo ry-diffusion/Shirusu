@@ -23,10 +23,10 @@ nonisolated final class MicrophoneFeed: AudioFeed, @unchecked Sendable {
     /// And not one for the whole process either, which is what this was: an
     /// engine carries the device it was bound to, so changing device means a
     /// new one. That alone was not enough to fix -10868, though. See `bind`.
-    private static var current = AVAudioEngine()
-    private static var boundDevice: AudioDeviceID?
+    private nonisolated(unsafe) static var current = AVAudioEngine()
+    private nonisolated(unsafe) static var boundDevice: AudioDeviceID?
     /// The format negotiated for `boundDevice`, which the tap has to match.
-    private static var boundFormat: AVAudioFormat?
+    private nonisolated(unsafe) static var boundFormat: AVAudioFormat?
     /// Serialises start and teardown, which can arrive from different tasks.
     private static let lock = NSLock()
 
@@ -42,11 +42,11 @@ nonisolated final class MicrophoneFeed: AudioFeed, @unchecked Sendable {
     /// Now a stream that is no longer the owner is *finished* instead, so its
     /// reader ends on whatever it managed to hear, and only the owner is
     /// allowed to tear the engine down.
-    private static var owner = 0
-    private static var active: AsyncThrowingStream<AudioChunk, Error>.Continuation?
+    private nonisolated(unsafe) static var owner = 0
+    private nonisolated(unsafe) static var active: AsyncThrowingStream<AudioChunk, Error>.Continuation?
     /// Watches the engine the owner is reading, so a device that disappears
     /// mid-capture ends the stream rather than starving it.
-    private static var configurationWatch: NSObjectProtocol?
+    private nonisolated(unsafe) static var configurationWatch: NSObjectProtocol?
 
     /// Takes the microphone from whoever holds it. Callers hold `lock`.
     private static func takeOwnership() {

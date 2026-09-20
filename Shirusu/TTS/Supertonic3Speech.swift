@@ -397,6 +397,17 @@ private struct SpeechAudio: Sendable {
     }
 }
 
+/// Carries a freshly loaded model out of its loading task.
+///
+/// Neither `ChatterboxTTSModel` nor `VoxCPM2TTSModel` is `Sendable`, so a
+/// `Task` producing one cannot hand it back to the actor that started it.
+/// The task lets go of the model the moment it returns and `SpeechEngine` is
+/// the only thing that ever touches it afterwards, so the crossing has no
+/// second reference to race with.
+private nonisolated struct Loaded<Model>: @unchecked Sendable {
+    let model: Model
+}
+
 /// Holds FluidAudio's actor for the lifetime of the app. The ANE-bucketed
 /// int4 estimator is a particularly good fit for an interactive Mac app: it
 /// downloads the compact variant and leaves the Neural Engine free of the
@@ -408,9 +419,9 @@ private actor SpeechEngine {
     private var hasSupertonicPrepared = false
     private var supertonicStyles: [Supertonic3Voice: Supertonic3VoiceStyle] = [:]
     private var chatterboxMLX: ChatterboxTTSModel?
-    private var chatterboxMLXLoad: Task<ChatterboxTTSModel, Error>?
+    private var chatterboxMLXLoad: Task<Loaded<ChatterboxTTSModel>, Error>?
     private var voxcpm: VoxCPM2TTSModel?
-    private var voxcpmLoad: Task<VoxCPM2TTSModel, Error>?
+    private var voxcpmLoad: Task<Loaded<VoxCPM2TTSModel>, Error>?
 
     /// The repos to try, in order. The first is what was asked for; the second
     /// is what `speech-swift` is written and tested against, so it is the one
@@ -667,8 +678,13 @@ private actor SpeechEngine {
         // Chatterbox path.
         try Task.checkCancellation()
         willSynthesize()
+        // `generateVoxCPM2` is a plain nonisolated method on a class the
+        // package does not mark `Sendable`, so awaiting it hands the model out
+        // of this actor. The box carries it across; nothing else reaches for
+        // the model while a generation is in flight.
+        let generating = Loaded(model: model)
         let samples = try await withGenerationMemoryCap {
-            try await model.generateVoxCPM2(
+            try await generating.model.generateVoxCPM2(
                 text: text,
                 language: language,
                 refAudio: reference,
@@ -679,19 +695,20 @@ private actor SpeechEngine {
 
     private func loadVoxCPM(progress: @escaping ProgressHandler) async throws -> VoxCPM2TTSModel {
         if let voxcpm { return voxcpm }
-        if let voxcpmLoad { return try await voxcpmLoad.value }
+        if let voxcpmLoad { return try await voxcpmLoad.value.model }
 
         releaseModels(except: .voxcpm)
         let load = Task {
             var lastFailure: Error?
             for modelId in Self.voxcpmModelIds {
                 do {
-                    return try await VoxCPM2TTSModel.fromPretrained(modelId: modelId) { fraction, _ in
-                        progress(DownloadProgress(
-                            fractionCompleted: fraction,
-                            phase: .downloading(completedFiles: 0, totalFiles: 0)
-                        ))
-                    }
+                    return Loaded(
+                        model: try await VoxCPM2TTSModel.fromPretrained(modelId: modelId) { fraction, _ in
+                            progress(DownloadProgress(
+                                fractionCompleted: fraction,
+                                phase: .downloading(completedFiles: 0, totalFiles: 0)
+                            ))
+                        })
                 } catch {
                     Self.log.notice(
                         "VoxCPM2 could not load \(modelId, privacy: .public); trying the next repo")
@@ -702,7 +719,7 @@ private actor SpeechEngine {
         }
         voxcpmLoad = load
         defer { if voxcpmLoad == load { voxcpmLoad = nil } }
-        let model = try await load.value
+        let model = try await load.value.model
 
         // `releaseModels` clears the slot when it gives up on a load, so a slot
         // that no longer holds this task is how a mode change that happened
@@ -727,21 +744,22 @@ private actor SpeechEngine {
         progress: @escaping ProgressHandler
     ) async throws -> ChatterboxTTSModel {
         if let chatterboxMLX { return chatterboxMLX }
-        if let chatterboxMLXLoad { return try await chatterboxMLXLoad.value }
+        if let chatterboxMLXLoad { return try await chatterboxMLXLoad.value.model }
 
         releaseModels(except: .chatterbox)
 
         let load = Task {
-            try await ChatterboxTTSModel.fromPretrained { fraction, _ in
-                progress(DownloadProgress(
-                    fractionCompleted: fraction,
-                    phase: .downloading(completedFiles: 0, totalFiles: 0)
-                ))
-            }
+            Loaded(
+                model: try await ChatterboxTTSModel.fromPretrained { fraction, _ in
+                    progress(DownloadProgress(
+                        fractionCompleted: fraction,
+                        phase: .downloading(completedFiles: 0, totalFiles: 0)
+                    ))
+                })
         }
         chatterboxMLXLoad = load
         defer { if chatterboxMLXLoad == load { chatterboxMLXLoad = nil } }
-        let model = try await load.value
+        let model = try await load.value.model
 
         // As above: an empty slot means the mode changed while this was
         // loading, and nothing wants it now. Chatterbox has no `unload`, so

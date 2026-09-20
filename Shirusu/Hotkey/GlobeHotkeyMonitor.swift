@@ -48,7 +48,10 @@ final class GlobeHotkeyMonitor {
     /// prompt looks broken to anyone who has already dismissed it once. Opening
     /// the settings pane is the part that always does something.
     func requestAccessibilityPermission() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+        // `kAXTrustedCheckOptionPrompt` is imported as a mutable global, which
+        // Swift 6 will not let a concurrent context read. The key it holds is
+        // part of the framework's contract, so spelling it out costs nothing.
+        let options = ["AXTrustedCheckOptionPrompt": true]
         _ = AXIsProcessTrustedWithOptions(options as CFDictionary)
         openAccessibilitySettings()
     }
