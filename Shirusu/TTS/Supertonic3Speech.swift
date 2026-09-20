@@ -223,12 +223,12 @@ nonisolated struct MLXAudioControls: Sendable {
     var cfgWeight: Float = 0.5
     var temperature: Float = 0.8
 
-    /// Fixed. These three are sampling vocabulary — nobody can hear what a
-    /// min-p of 0.05 does, so they were a decision the screen had no business
-    /// asking for. The values are the ones `clone` defaults to.
-    let repetitionPenalty: Float = 1.2
-    let minP: Float = 0.05
-    let topP: Float = 1.0
+    /// Sampling vocabulary. Nobody can hear what a min-p of 0.05 does, so
+    /// these stay out of the way behind Technical options; the defaults are
+    /// the ones `clone` uses, and most people never move them.
+    var repetitionPenalty: Float = 1.2
+    var minP: Float = 0.05
+    var topP: Float = 1.0
 
     func adjusted(for line: VoiceLine) -> MLXAudioControls {
         var adjusted = self

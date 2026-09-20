@@ -16,8 +16,6 @@ struct TextToSpeechView: View {
     @State private var language: SpeechSession.Language = .portuguese
     @State private var voice: SpeechSession.Voice = .m1
     @State private var mlxAudio = MLXAudioControls()
-    @State private var tone: VoiceLine.Tone = .natural
-    @State private var pace: VoiceLine.Pace = .normal
     @State private var referenceAudio: URL?
     @State private var isImportingReference = false
     @State private var isLyricsMode = false
@@ -86,6 +84,16 @@ struct TextToSpeechView: View {
                 advancedWorkspace
             }
 
+            if speech.phase == .preparing {
+                Section {
+                    WorkingProgress(
+                        fraction: speech.downloadFraction,
+                        status: preparationStatus)
+                } footer: {
+                    Text("The first copy of a voice downloads its model. It stays on this Mac afterwards.")
+                }
+            }
+
             if case .failed(let message) = speech.phase {
                 Section {
                     Label(message, systemImage: "exclamationmark.triangle.fill")
@@ -144,21 +152,43 @@ struct TextToSpeechView: View {
             // The same two values the Song lyrics tab already names. Having
             // them be sliders here and presets there meant one thing spoke
             // with two vocabularies depending on which tab you were on.
-            Picker("Tone", selection: $tone) {
+            Picker("Tone", selection: toneSelection) {
                 ForEach(VoiceLine.Tone.allCases) { tone in
-                    Text(tone.label).tag(tone)
+                    Text(tone.label).tag(Optional(tone))
+                }
+                // Only appears once a technical slider has moved the value off
+                // every preset. Offering it otherwise would be a choice that
+                // does nothing.
+                if toneSelection.wrappedValue == nil {
+                    Text("Custom").tag(VoiceLine.Tone?.none)
                 }
             }
-            Picker("Pace", selection: $pace) {
+            Picker("Pace", selection: paceSelection) {
                 ForEach(VoiceLine.Pace.allCases) { pace in
-                    Text(pace.label).tag(pace)
+                    Text(pace.label).tag(Optional(pace))
+                }
+                if paceSelection.wrappedValue == nil {
+                    Text("Custom").tag(VoiceLine.Pace?.none)
                 }
             }
             slider("Variation", value: $mlxAudio.temperature, range: 0.05...1.5, step: 0.05)
+
+            DisclosureGroup("Technical options") {
+                // The model's own names, on purpose. Someone who opens this
+                // drawer is looking for the values they read about, and a
+                // friendly rename would only hide which knob is which.
+                slider("Exaggeration", value: $mlxAudio.exaggeration, range: 0...1, step: 0.05)
+                slider("CFG weight", value: $mlxAudio.cfgWeight, range: 0...1, step: 0.05)
+                slider("Repetition penalty", value: $mlxAudio.repetitionPenalty, range: 1...2, step: 0.05)
+                slider("Min-p", value: $mlxAudio.minP, range: 0...0.2, step: 0.01)
+                slider("Top-p", value: $mlxAudio.topP, range: 0.1...1, step: 0.05)
+                Button("Back to defaults") { mlxAudio = MLXAudioControls() }
+                    .buttonStyle(.link)
+            }
         } header: {
             Text("Voice delivery")
         } footer: {
-            Text("Dramatic makes the interpretation more pronounced, and can speed the speech up or make it less natural. Variation changes how much one reading differs from the last.")
+            Text("Dramatic makes the interpretation more pronounced, and can speed the speech up or make it less natural. Variation changes how much one reading differs from the last; it is the model's temperature. Tone and Pace are named points on Exaggeration and CFG weight, so moving either below shows them as Custom.")
         }
     }
 
@@ -259,16 +289,26 @@ struct TextToSpeechView: View {
 
     private var needsReference: Bool { backend == .mlxAudio }
 
+    /// The preset whose value is currently set, or `nil` for anything else.
+    /// Reading the picker off the value rather than storing it separately is
+    /// what keeps the drawer and the presets from disagreeing.
+    private var toneSelection: Binding<VoiceLine.Tone?> {
+        Binding(
+            get: { VoiceLine.Tone.allCases.first { $0.exaggeration == mlxAudio.exaggeration } },
+            set: { if let tone = $0 { mlxAudio.exaggeration = tone.exaggeration } })
+    }
+
+    private var paceSelection: Binding<VoiceLine.Pace?> {
+        Binding(
+            get: { VoiceLine.Pace.allCases.first { $0.cfgWeight == mlxAudio.cfgWeight } },
+            set: { if let pace = $0 { mlxAudio.cfgWeight = pace.cfgWeight } })
+    }
+
     private func requestSpeech() {
         guard !app.speech.phase.isBusy else { return }
-        // Tone and pace are presets over the same two controls the lyric lines
-        // set per line, so a lyric run overrides these on its way through.
-        var controls = mlxAudio
-        controls.exaggeration = tone.exaggeration
-        controls.cfgWeight = pace.cfgWeight
         app.speech.speak(
             text: text, backend: backend, language: language, voice: voice,
-            mlxAudio: controls,
+            mlxAudio: mlxAudio,
             referenceAudio: needsReference ? referenceAudio : nil,
             lyricLines: isLyricsMode ? lyricLines : []
         )
@@ -276,14 +316,15 @@ struct TextToSpeechView: View {
 
     private var status: String {
         switch app.speech.phase {
-        case .preparing:
-            let percentage = Int((app.speech.downloadFraction * 100).rounded())
-            return String(localized: "Preparing (\(percentage)%)…")
-        case .synthesizing:
-            return String(localized: "Creating the voice…")
-        case .idle, .playing, .failed:
-            return ""
+        case .preparing: String(localized: "Preparing…")
+        case .synthesizing: String(localized: "Creating the voice…")
+        case .idle, .playing, .failed: ""
         }
+    }
+
+    private var preparationStatus: String {
+        let percentage = Int((app.speech.downloadFraction * 100).rounded())
+        return String(localized: "Getting the voice ready (\(percentage)%)")
     }
 
     private var modelDescription: String {

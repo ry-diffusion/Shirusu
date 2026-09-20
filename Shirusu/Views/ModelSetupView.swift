@@ -24,22 +24,8 @@ struct ModelSetupView: View {
                 .frame(maxWidth: 380)
                 .padding(.top, 7)
 
-            ProgressView(value: fraction)
-                .progressViewStyle(.linear)
-                .tint(Ink.accent)
-                .frame(width: 300)
+            WorkingProgress(fraction: fraction, status: statusLine, width: 300)
                 .padding(.top, 30)
-
-            HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
-                Text(statusLine)
-                    .font(Typeface.secondary.monospaced())
-                    .foregroundStyle(.secondary)
-                    .contentTransition(.numericText())
-                    .animation(Motion.settle, value: statusLine)
-            }
-            .padding(.top, 12)
 
             Text("Text to Speech does not use this model, and works now.")
                 .font(Typeface.secondary)
