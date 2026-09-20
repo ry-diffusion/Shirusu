@@ -97,7 +97,7 @@ struct TextToSpeechView: View {
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .background(Ink.canvas)
-        .safeAreaInset(edge: .bottom, spacing: 0) { controls }
+        .toolbar { toolbarItems }
         .onAppear { app.speech.prepare(for: backend) }
         .onDisappear { app.speech.stop() }
         .sheet(isPresented: $isManagingVoices) {
@@ -252,36 +252,33 @@ struct TextToSpeechView: View {
         }
     }
 
-    private var controls: some View {
-        HStack(spacing: 12) {
-            if app.speech.isPlaying {
-                Button("Stop", systemImage: "stop.fill") { app.speech.stop() }.controlSize(.large)
+    /// In the title bar rather than in a bar of its own along the bottom.
+    ///
+    /// The form is long enough to scroll on its own, and a bottom inset took
+    /// its height from a window that was already tight — the button ended up
+    /// half off the edge. Transcribe has always kept its actions up here.
+    @ToolbarContentBuilder
+    private var toolbarItems: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            if app.speech.phase.isBusy {
+                // What it is busy with is in the activity strip, which says so
+                // from whichever screen you are on. Here there is only the way
+                // out of it.
+                Button("Cancel") { app.speech.stop() }
+            } else if app.speech.isPlaying {
+                Button("Stop", systemImage: "stop.fill") { app.speech.stop() }
             } else {
-                Button(action: requestSpeech) {
-                    if app.speech.phase.isBusy {
-                        HStack(spacing: 7) {
-                            ProgressView()
-                                .controlSize(.small)
-                                .tint(.white)
-                            Text(status)
-                        }
-                    } else {
-                        Label("Listen", systemImage: "play.fill")
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Ink.accent)
-                .controlSize(.large)
-                .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (backend == .mlxAudio && referenceAudio == nil))
-                .allowsHitTesting(!app.speech.phase.isBusy)
+                Button("Listen", systemImage: "play.fill", action: requestSpeech)
+                    .buttonStyle(.borderedProminent)
+                    .tint(Ink.accent)
+                    .disabled(cannotSpeak)
             }
-            Spacer()
-            if app.speech.phase.isBusy { Button("Cancel") { app.speech.stop() }.controlSize(.large) }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .background(.regularMaterial)
-        .overlay(alignment: .top) { Rectangle().fill(Ink.hairline).frame(height: 1) }
+    }
+
+    private var cannotSpeak: Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || (backend == .mlxAudio && referenceAudio == nil)
     }
 
     private var needsReference: Bool { backend == .mlxAudio }
@@ -314,14 +311,6 @@ struct TextToSpeechView: View {
             referenceAudio: needsReference ? referenceAudio : nil,
             lyricLines: isLyricsMode ? lyricLines : []
         )
-    }
-
-    private var status: String {
-        switch app.speech.phase {
-        case .preparing: String(localized: "Preparing…")
-        case .synthesizing: String(localized: "Creating the voice…")
-        case .idle, .playing, .failed: ""
-        }
     }
 
 
