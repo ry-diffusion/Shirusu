@@ -66,6 +66,9 @@ struct VoiceProfilesView: View {
         } message: {
             Text(problem ?? "")
         }
+        // Closing the sheet mid-recording is the ordinary way out of it, and
+        // it has to close the microphone too.
+        .onDisappear { recorder.cancel() }
         .onChange(of: recorder.take?.url) { _, url in
             guard url != nil else { return }
             Task { await review() }

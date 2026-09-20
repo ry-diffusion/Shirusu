@@ -166,7 +166,8 @@ final class TranscriptionSession {
                 self.phase = .running
                 self.startRolling()
 
-                let stream = await Self.open(feed)
+                // Away from the main actor, which is where this task runs.
+                let stream = await feed.opened()
 
                 for try await chunk in stream {
                     // `isStopping` is a release; cancellation is a discard.
@@ -202,27 +203,6 @@ final class TranscriptionSession {
                 self.log.error("Session failed: \(error.localizedDescription, privacy: .public)")
                 self.phase = .failed(error.localizedDescription)
                 self.finish("")
-            }
-        }
-    }
-
-    /// Opens the source away from the main actor.
-    ///
-    /// Building a feed's stream is not the bookkeeping it looks like. The
-    /// microphone negotiates a format with the hardware and waits for the HAL
-    /// to hand back an IO thread; the system tap builds an aggregate device.
-    /// Both happen synchronously inside `chunks()`, and `chunks()` runs
-    /// wherever it is called — which was here, on the main actor, with the
-    /// window held still for as long as CoreAudio took to answer.
-    private nonisolated static func open(
-        _ feed: AudioFeed
-    ) async -> AsyncThrowingStream<AudioChunk, Error> {
-        await withCheckedContinuation { resume in
-            // A real thread rather than the cooperative pool: opening a device
-            // blocks, and blocking a pool thread is how you starve everything
-            // else that is waiting to run on it.
-            DispatchQueue.global(qos: .userInitiated).async {
-                resume.resume(returning: feed.chunks())
             }
         }
     }

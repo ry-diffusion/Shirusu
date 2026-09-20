@@ -1,4 +1,5 @@
 import AVFoundation
+import Foundation
 
 /// A slice of audio on its way to the recogniser.
 ///
@@ -33,6 +34,27 @@ nonisolated protocol AudioFeed: Sendable {
     /// A human-readable name for the source, shown in the UI.
     var label: String { get }
     func chunks() -> AsyncThrowingStream<AudioChunk, Error>
+}
+
+extension AudioFeed {
+    /// Opens the source away from whoever asked for it.
+    ///
+    /// Building the stream is not the bookkeeping it looks like. The
+    /// microphone negotiates a format with the hardware and waits for the HAL
+    /// to hand back an IO thread; the system tap builds an aggregate device.
+    /// Both happen synchronously inside `chunks()`, and `chunks()` runs
+    /// wherever it is called — which, for every caller here, was the main
+    /// actor, with the window held still for as long as CoreAudio took.
+    func opened() async -> AsyncThrowingStream<AudioChunk, Error> {
+        await withCheckedContinuation { resume in
+            // A real thread rather than the cooperative pool: opening a device
+            // blocks, and blocking a pool thread starves everything else that
+            // was waiting to run on it.
+            DispatchQueue.global(qos: .userInitiated).async {
+                resume.resume(returning: self.chunks())
+            }
+        }
+    }
 }
 
 /// Frames seen so far. The tap block is sendable and may be called from any

@@ -143,6 +143,14 @@ final class VoiceRecorder {
 
     var isRecording: Bool { phase == .recording }
 
+    /// The backstop for a recorder that goes away without being told to stop.
+    /// The tasks hold the feed, not the other way round, so nothing else would
+    /// ever close the microphone.
+    deinit {
+        pump?.cancel()
+        listener?.cancel()
+    }
+
     func start(
         device: InputDevice?,
         script: String?,
@@ -166,25 +174,28 @@ final class VoiceRecorder {
         self.feed = feed
         pump = Task { [weak self, native] in
             do {
-                for try await chunk in feed.chunks() {
+                // Away from the main actor, which is where this task runs.
+                let stream = await feed.opened()
+                for try await chunk in stream {
                     await native.append(chunk.buffer, peak: chunk.peak)
                     let seconds = await native.seconds
-                    await MainActor.run {
-                        guard let self, self.phase == .recording else { return }
-                        self.level = chunk.peak
-                        self.duration = seconds
-                        // However well it is going, twenty seconds is past
-                        // everything the model reads.
-                        if seconds >= Self.wanted.upperBound {
-                            Task { await self.finish() }
-                        }
+                    // Gone, or stopped. This used to check and carry on
+                    // regardless, because the check was inside a closure and
+                    // could only return from that — so a sheet dismissed
+                    // mid-recording left the microphone open, the orange dot
+                    // lit, and the take growing for the rest of the session.
+                    guard let self, self.phase == .recording else { return }
+                    self.level = chunk.peak
+                    self.duration = seconds
+                    // However well it is going, twenty seconds is past
+                    // everything the model reads.
+                    if seconds >= Self.wanted.upperBound {
+                        Task { await self.finish() }
                     }
                 }
             } catch {
-                await MainActor.run {
-                    guard let self, self.phase == .recording else { return }
-                    self.phase = .failed(error.localizedDescription)
-                }
+                guard let self, self.phase == .recording else { return }
+                self.phase = .failed(error.localizedDescription)
             }
         }
 
@@ -196,25 +207,26 @@ final class VoiceRecorder {
     private func listen(to script: String?, with transcriber: BatchTranscriber) {
         listener = Task { [weak self, native] in
             while !Task.isCancelled {
+                // The recorder is gone, or it has stopped. Either way nobody
+                // is reading this, and a pass that keeps running keeps the
+                // Neural Engine busy for a screen that is no longer there.
+                guard let self, self.phase == .recording else { return }
+
                 let started = ContinuousClock.now
                 let (raw, rate) = await native.snapshot()
-                let samples = Self.atRecogniserRate(raw, from: rate)
 
-                if samples.count >= BatchTranscriber.minimumSamples {
-                    let text = (try? await transcriber.transcribe(samples)) ?? ""
-                    let progress = script.map {
-                        EnrollmentCheck.progress(script: $0, heard: text)
-                    }
-
-                    await MainActor.run {
-                        guard let self, self.phase == .recording else { return }
-                        self.heard = text
-                        self.readSoFar = progress?.matched ?? []
-                        // The line is done. Waiting for a button press now only
-                        // records the silence after it.
-                        if let progress, progress.accuracy >= VoiceProfile.Check.passMark {
-                            Task { await self.finish() }
-                        }
+                if let pass = await Self.listenBack(
+                    raw, rate: rate, script: script, with: transcriber)
+                {
+                    guard self.phase == .recording else { return }
+                    self.heard = pass.text
+                    self.readSoFar = pass.progress?.matched ?? []
+                    // The line is done. Waiting for a button press now only
+                    // records the silence after it.
+                    if let progress = pass.progress,
+                        progress.accuracy >= VoiceProfile.Check.passMark
+                    {
+                        Task { await self.finish() }
                     }
                 }
 
@@ -224,6 +236,26 @@ final class VoiceRecorder {
                 try? await Task.sleep(for: .seconds(max(Self.listenInterval, cost)))
             }
         }
+    }
+
+    /// One pass over the take so far, off the main actor.
+    ///
+    /// `nonisolated` is doing real work here: this task runs on the main actor
+    /// because that is where it was started, and resampling twenty seconds of
+    /// 48 kHz audio before decoding it is not something to do there. A
+    /// `nonisolated async` function runs on the generic executor instead.
+    ///
+    /// Returns nothing while there is less audio than the decoder will accept.
+    private nonisolated static func listenBack(
+        _ raw: [Float],
+        rate: Double,
+        script: String?,
+        with transcriber: BatchTranscriber
+    ) async -> (text: String, progress: EnrollmentCheck.Progress?)? {
+        let samples = atRecogniserRate(raw, from: rate)
+        guard samples.count >= BatchTranscriber.minimumSamples else { return nil }
+        let text = (try? await transcriber.transcribe(samples)) ?? ""
+        return (text, script.map { EnrollmentCheck.progress(script: $0, heard: text) })
     }
 
     /// Stop, and keep the take as a 24 kHz file plus the 16 kHz the check reads.
@@ -290,7 +322,9 @@ final class VoiceRecorder {
 
     /// Speech is band-limited and this is a downsample, which is exactly where
     /// `.standard` is meant to be used and mastering-grade filtering is wasted.
-    private static func atRecogniserRate(_ samples: [Float], from rate: Double) -> [Float] {
+    private nonisolated static func atRecogniserRate(
+        _ samples: [Float], from rate: Double
+    ) -> [Float] {
         guard rate > 0 else { return [] }
         guard Int(rate) != AudioFormats.sampleRate else { return samples }
         return AudioFileLoader.resample(
