@@ -36,6 +36,11 @@ struct ModelSetupView: View {
                 .contentTransition(.numericText())
                 .animation(Motion.settle, value: statusLine)
                 .padding(.top, 12)
+
+            Text("Text to Speech does not use this model, and works now.")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .padding(.top, 18)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(40)

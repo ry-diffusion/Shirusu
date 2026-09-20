@@ -1400,7 +1400,15 @@
     },
     "Text to speak" : {},
     "Text to Speech" : {
-      "comment" : "Mode: turn written text into spoken audio"
+      "comment" : "Mode: turn written text into spoken audio",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Texto para Fala"
+          }
+        }
+      }
     },
     "The button does the same thing as the key, for when the key is not set up yet." : {
       "localizations" : {
@@ -1916,6 +1924,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Variação"
+          }
+        }
+      }
+    },
+    "Text to Speech does not use this model, and works now." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Texto para Fala não usa este modelo, e já funciona."
           }
         }
       }

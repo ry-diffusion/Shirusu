@@ -4,30 +4,9 @@ struct RootView: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
-        ZStack {
-            switch app.stage {
-            case .preparing:
-                ModelSetupView(
-                    isFirstInstall: app.isFirstInstall,
-                    step: app.setupStep,
-                    fraction: app.setupFraction
-                )
-                .transition(.opacity)
-
-            case .failed(let message):
-                SetupFailureView(message: message) { app.retry() }
-                    .transition(.opacity)
-
-            case .ready:
-                if let file = app.fileSession {
-                    Workbench(fileSession: file)
-                        .transition(.opacity)
-                }
-            }
-        }
-        .background(Ink.canvas)
-        .animation(Motion.settle, value: app.stage)
-        .task { await app.bootstrap() }
+        Workbench()
+            .background(Ink.canvas)
+            .task { await app.bootstrap() }
     }
 }
 
@@ -39,8 +18,6 @@ struct RootView: View {
 /// feature that lives outside this window. A segmented control would promise
 /// they were interchangeable.
 private struct Workbench: View {
-    var fileSession: TranscriptionSession
-
     @Environment(AppModel.self) private var app
 
     var body: some View {
@@ -74,19 +51,47 @@ private struct Workbench: View {
         // so the screens cross-fade in place rather than sliding past each
         // other. Sliding would imply the sidebar is a position in a sequence.
         .animation(Motion.settle, value: app.mode)
+        .animation(Motion.settle, value: app.stage)
     }
 
+    /// The window opens straight away, and the download takes the detail pane
+    /// rather than the screen.
+    ///
+    /// Text to Speech has nothing to do with the transcription model, so it is
+    /// fully usable while Nemotron comes down — which is the point: a first
+    /// launch used to be a progress bar you could only watch.
     @ViewBuilder
     private var detail: some View {
         switch app.mode {
-        case .transcribe:
-            TranscribeView(session: fileSession)
-        case .captions:
-            CaptionsView()
-        case .dictation:
-            DictationView()
         case .speech:
             TextToSpeechView()
+        case .transcribe:
+            if let fileSession = app.fileSession {
+                TranscribeView(session: fileSession)
+            } else {
+                setup
+            }
+        case .captions:
+            if app.stage == .ready { CaptionsView() } else { setup }
+        case .dictation:
+            if app.stage == .ready { DictationView() } else { setup }
+        }
+    }
+
+    @ViewBuilder
+    private var setup: some View {
+        switch app.stage {
+        case .failed(let message):
+            SetupFailureView(message: message) { app.retry() }
+        case .preparing, .ready:
+            // `.ready` with no file session yet is the sliver between the model
+            // landing and the sessions being built. It reads as still going,
+            // which is what it is.
+            ModelSetupView(
+                isFirstInstall: app.isFirstInstall,
+                step: app.setupStep,
+                fraction: app.setupFraction
+            )
         }
     }
 }
