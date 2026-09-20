@@ -99,6 +99,7 @@ final class SpeechSession {
         voice: Voice,
         mlxAudio: MLXAudioControls,
         referenceAudio: URL?,
+        cloning: CloningEngine,
         voiceDescription: String,
         lyricLines: [VoiceLine]
     ) {
@@ -140,6 +141,7 @@ final class SpeechSession {
                     voice: Supertonic3Voice(rawValue: voice.rawValue) ?? .default,
                     mlxAudio: mlxAudio,
                     referenceAudio: localReference,
+                    cloning: cloning,
                     voiceDescription: voiceDescription,
                     lyricLines: lyricLines,
                     progress: { [weak self] update in
@@ -230,6 +232,31 @@ enum SpeechBackend: String, CaseIterable, Identifiable, Sendable {
     /// resident at once is more than a Mac should be asked to carry for a
     /// feature nobody is using at that moment.
     var isHeavy: Bool { self != .supertonic3 }
+}
+
+/// How a copied voice is made.
+///
+/// Two models can copy a voice, and they differ in ways someone can hear and
+/// feel rather than in their names — so this asks which of those they want,
+/// not which model to run.
+nonisolated enum CloningEngine: String, CaseIterable, Identifiable, Sendable {
+    /// Chatterbox: 24 kHz out, about 1.7 GB, and the quicker of the two.
+    case quick
+    /// VoxCPM2: 48 kHz out, about 3.2 GB, and the only one that will take a
+    /// note on how to deliver the line as well as whose voice to use.
+    case detailed
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .quick: String(localized: "Quicker")
+        case .detailed: String(localized: "Higher quality")
+        }
+    }
+
+    /// Whether it will read a note on delivery beside the recording.
+    var takesDirection: Bool { self == .detailed }
 }
 
 /// These map one-to-one to speech-swift's native Chatterbox MLX clone API.
@@ -391,22 +418,26 @@ private actor SpeechEngine {
         }
     }
 
+    /// The two multi-gigabyte models. Which one a run needs no longer follows
+    /// from the mode alone, since copying a voice can be either of them.
+    private enum HeavyModel { case chatterbox, voxcpm }
+
     /// One heavy model at a time.
     ///
     /// Chatterbox holds around 1.7 GB and VoxCPM2 around 3.2, both promoted to
-    /// float32 on Apple Silicon, and someone switching between the two modes is
-    /// not asking to carry both at once. Chatterbox has no `unload`, so letting
-    /// go of the reference and clearing the cache is all there is; VoxCPM2 has
-    /// one and it is worth calling.
-    private func releaseModels(except backend: SpeechBackend) {
+    /// float32 on Apple Silicon, and someone switching between modes is not
+    /// asking to carry both at once. Chatterbox has no `unload`, so letting go
+    /// of the reference and clearing the cache is all there is; VoxCPM2 has one
+    /// and it is worth calling.
+    private func releaseModels(except wanted: HeavyModel) {
         var freed = false
-        if backend != .mlxAudio, chatterboxMLX != nil {
+        if wanted != .chatterbox, chatterboxMLX != nil {
             chatterboxMLX = nil
             // These hold MLXArrays built by the model that is going away.
             clonedVoices.removeAll()
             freed = true
         }
-        if backend != .voiceDesign, let voxcpm {
+        if wanted != .voxcpm, let voxcpm {
             voxcpm.unload()
             self.voxcpm = nil
             freed = true
@@ -421,6 +452,7 @@ private actor SpeechEngine {
         voice: Supertonic3Voice,
         mlxAudio: MLXAudioControls,
         referenceAudio: URL?,
+        cloning: CloningEngine,
         voiceDescription: String,
         lyricLines: [VoiceLine],
         progress: @escaping ProgressHandler,
@@ -435,6 +467,14 @@ private actor SpeechEngine {
             return try await synthesizeVoiceDesign(
                 text: text, language: language, description: voiceDescription,
                 progress: progress, willSynthesize: willSynthesize)
+        case .mlxAudio where cloning == .detailed:
+            guard let referenceAudio else {
+                throw SpeechEngineError.missingChatterboxReference
+            }
+            return try await synthesizeVoxCloning(
+                text: text, language: language, referenceAudio: referenceAudio,
+                direction: voiceDescription, progress: progress,
+                willSynthesize: willSynthesize)
         case .mlxAudio:
             guard let referenceAudio else {
                 throw SpeechEngineError.missingChatterboxReference
@@ -544,11 +584,38 @@ private actor SpeechEngine {
         return .samples(samples, sampleRate: model.sampleRate)
     }
 
+    /// A copied voice through VoxCPM2: 48 kHz out, and a note on delivery
+    /// alongside the recording, which Chatterbox has nowhere to put.
+    private func synthesizeVoxCloning(
+        text: String,
+        language: String,
+        referenceAudio: URL,
+        direction: String,
+        progress: @escaping ProgressHandler,
+        willSynthesize: @escaping @Sendable () -> Void
+    ) async throws -> SpeechAudio {
+        let model = try await loadVoxCPM(progress: progress)
+
+        // The VAE asserts its own rate rather than resampling to it, and a
+        // `precondition` traps in release as well — so the reference is decoded
+        // at whatever rate this checkpoint was built for rather than at ours.
+        let reference = try await AudioDecoder.decode(
+            referenceAudio, sampleRate: model.audio_vae.sampleRate)
+
+        willSynthesize()
+        let samples = try await model.generateVoxCPM2(
+            text: text,
+            language: language,
+            refAudio: reference.samples,
+            instruct: direction.isEmpty ? nil : direction)
+        return .samples(samples, sampleRate: model.sampleRate)
+    }
+
     private func loadVoxCPM(progress: @escaping ProgressHandler) async throws -> VoxCPM2TTSModel {
         if let voxcpm { return voxcpm }
         if let voxcpmLoad { return try await voxcpmLoad.value }
 
-        releaseModels(except: .voiceDesign)
+        releaseModels(except: .voxcpm)
         let load = Task {
             var lastFailure: Error?
             for modelId in Self.voxcpmModelIds {
@@ -584,7 +651,7 @@ private actor SpeechEngine {
         if let chatterboxMLX { return chatterboxMLX }
         if let chatterboxMLXLoad { return try await chatterboxMLXLoad.value }
 
-        releaseModels(except: .mlxAudio)
+        releaseModels(except: .chatterbox)
 
         let load = Task {
             try await ChatterboxTTSModel.fromPretrained { fraction, _ in

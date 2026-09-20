@@ -18,6 +18,11 @@ struct TextToSpeechView: View {
     @State private var mlxAudio = MLXAudioControls()
     @State private var isManagingVoices = false
     @State private var voiceDescription = ""
+    @State private var cloning: CloningEngine = .quick
+    /// Kept apart from `voiceDescription`: there it defines the voice, here it
+    /// only says how to deliver a line in one that already exists. Sharing the
+    /// field would carry an answer from one question into a different one.
+    @State private var cloneDirection = ""
     @State private var isLyricsMode = false
     @State private var lyricLines: [VoiceLine] = []
     @State private var advancedTab: AdvancedTab = .voiceCloning
@@ -250,10 +255,24 @@ struct TextToSpeechView: View {
                 }
                 Button("Manage voices…") { isManagingVoices = true }
             }
+
+            Picker("Quality", selection: $cloning) {
+                ForEach(CloningEngine.allCases) { engine in
+                    Text(engine.label).tag(engine)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            if cloning.takesDirection {
+                TextField("How it should sound — optional", text: $cloneDirection, axis: .vertical)
+                    .lineLimit(1...3)
+            }
         } header: {
             Text("Voice Cloning")
         } footer: {
-            Text("Required. Record a line here or bring a file: one person, somewhere quiet, six to twenty seconds. The model conditions on the first ten. Saved voices stay on this Mac. Only use your own voice or a voice you are authorized to use.")
+            Text(cloning == .quick
+                ? "Required. Record a line here or bring a file: one person, somewhere quiet, six to twenty seconds. The model conditions on the first ten. Saved voices stay on this Mac. Only use your own voice or a voice you are authorized to use."
+                : "Higher quality speaks at 48 kHz instead of 24 and will take a note on delivery — “tired”, “reading a bedtime story” — alongside the recording. It downloads a model of about 3 GB and is slower to start. Only use your own voice or a voice you are authorized to use.")
         }
     }
 
@@ -336,7 +355,8 @@ struct TextToSpeechView: View {
             text: text, backend: backend, language: language, voice: voice,
             mlxAudio: mlxAudio,
             referenceAudio: needsReference ? referenceAudio : nil,
-            voiceDescription: voiceDescription,
+            cloning: cloning,
+            voiceDescription: backend == .voiceDesign ? voiceDescription : cloneDirection,
             lyricLines: isLyricsMode ? lyricLines : []
         )
     }

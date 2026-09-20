@@ -2539,6 +2539,56 @@
           }
         }
       }
+    },
+    "Quality" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qualidade"
+          }
+        }
+      }
+    },
+    "Quicker" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mais rápido"
+          }
+        }
+      }
+    },
+    "Higher quality" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mais qualidade"
+          }
+        }
+      }
+    },
+    "How it should sound — optional" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Como deve soar — opcional"
+          }
+        }
+      }
+    },
+    "Higher quality speaks at 48 kHz instead of 24 and will take a note on delivery — “tired”, “reading a bedtime story” — alongside the recording. It downloads a model of about 3 GB and is slower to start. Only use your own voice or a voice you are authorized to use." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mais qualidade fala a 48 kHz em vez de 24 e aceita uma observação sobre a entrega — “cansado”, “contando história para dormir” — junto com a gravação. Baixa um modelo de uns 3 GB e demora mais para começar. Use só a sua voz ou uma voz que você tenha autorização para usar."
+          }
+        }
+      }
     }
   },
   "version" : "1.1"
