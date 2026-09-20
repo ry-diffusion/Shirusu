@@ -166,7 +166,9 @@ final class TranscriptionSession {
                 self.phase = .running
                 self.startRolling()
 
-                for try await chunk in feed.chunks() {
+                let stream = await Self.open(feed)
+
+                for try await chunk in stream {
                     // `isStopping` is a release; cancellation is a discard.
                     if self.isStopping || Task.isCancelled { break }
                     self.absorb(chunk)
@@ -204,6 +206,27 @@ final class TranscriptionSession {
         }
     }
 
+    /// Opens the source away from the main actor.
+    ///
+    /// Building a feed's stream is not the bookkeeping it looks like. The
+    /// microphone negotiates a format with the hardware and waits for the HAL
+    /// to hand back an IO thread; the system tap builds an aggregate device.
+    /// Both happen synchronously inside `chunks()`, and `chunks()` runs
+    /// wherever it is called — which was here, on the main actor, with the
+    /// window held still for as long as CoreAudio took to answer.
+    private nonisolated static func open(
+        _ feed: AudioFeed
+    ) async -> AsyncThrowingStream<AudioChunk, Error> {
+        await withCheckedContinuation { resume in
+            // A real thread rather than the cooperative pool: opening a device
+            // blocks, and blocking a pool thread is how you starve everything
+            // else that is waiting to run on it.
+            DispatchQueue.global(qos: .userInitiated).async {
+                resume.resume(returning: feed.chunks())
+            }
+        }
+    }
+
     /// Re-reads the whole utterance on a schedule that throttles itself.
     ///
     /// Waiting as long as the last pass took keeps the duty cycle near half:
@@ -231,9 +254,17 @@ final class TranscriptionSession {
                 var cost = Self.minimumInterval
                 if samples.count >= BatchTranscriber.minimumSamples {
                     let started = ContinuousClock.now
-                    if let text = try? await self.engine.transcribe(samples), !text.isEmpty,
-                        text != self.lastPreview
-                    {
+                    let text = try? await self.engine.transcribe(samples)
+
+                    // A pass takes a good fraction of a second and the model
+                    // does not answer to cancellation, so this one may well
+                    // have been started by a run that is already over. Writing
+                    // its text into a transcript that has since been cleared is
+                    // what left a sentence from a finished caption run sitting
+                    // on screen with nothing left to take it down.
+                    if Task.isCancelled { return }
+
+                    if let text, !text.isEmpty, text != self.lastPreview {
                         // Identical text means the window is re-reading words
                         // already on screen, which is what silence looks like
                         // from here: the last thing said stays in the window

@@ -30,6 +30,49 @@ nonisolated final class MicrophoneFeed: AudioFeed, @unchecked Sendable {
     /// Serialises start and teardown, which can arrive from different tasks.
     private static let lock = NSLock()
 
+    /// Which stream currently owns the one engine and the one tap.
+    ///
+    /// There is only ever one of each, so a second `chunks()` takes the first
+    /// one's tap away — and used to take it away in silence. The reader
+    /// downstream then waited for a chunk that could no longer arrive: a
+    /// release that never finished, and a Globe key dead until the
+    /// sixty-second watchdog let go of it. Holding the Globe key while a voice
+    /// was being recorded did exactly this.
+    ///
+    /// Now a stream that is no longer the owner is *finished* instead, so its
+    /// reader ends on whatever it managed to hear, and only the owner is
+    /// allowed to tear the engine down.
+    private static var owner = 0
+    private static var active: AsyncThrowingStream<AudioChunk, Error>.Continuation?
+    /// Watches the engine the owner is reading, so a device that disappears
+    /// mid-capture ends the stream rather than starving it.
+    private static var configurationWatch: NSObjectProtocol?
+
+    /// Takes the microphone from whoever holds it. Callers hold `lock`.
+    private static func takeOwnership() {
+        stopWatching()
+        let outgoing = active
+        active = nil
+        owner &+= 1
+        // Finishing runs the outgoing stream's termination handler, which hops
+        // to a background queue and waits on this lock rather than re-entering
+        // it — by which time `owner` has already moved past it.
+        outgoing?.finish()
+    }
+
+    /// Gives the microphone up, if it is still ours. Callers hold `lock`.
+    private static func resign(_ mine: Int) {
+        guard owner == mine else { return }
+        stopWatching()
+        active = nil
+    }
+
+    private static func stopWatching() {
+        guard let watch = configurationWatch else { return }
+        NotificationCenter.default.removeObserver(watch)
+        configurationWatch = nil
+    }
+
     /// An engine pointed at `device`, and the format to tap it with.
     ///
     /// Callers hold `lock`.
@@ -189,6 +232,10 @@ nonisolated final class MicrophoneFeed: AudioFeed, @unchecked Sendable {
             Self.lock.lock()
             defer { Self.lock.unlock() }
 
+            Self.takeOwnership()
+            let mine = Self.owner
+            Self.active = continuation
+
             let (engine, negotiated) = Self.engine(for: device)
             let input = engine.inputNode
 
@@ -207,6 +254,7 @@ nonisolated final class MicrophoneFeed: AudioFeed, @unchecked Sendable {
             }
 
             guard format.sampleRate > 0, format.channelCount > 0 else {
+                Self.resign(mine)
                 continuation.finish(throwing: MicrophoneError.noInputDevice)
                 return
             }
@@ -240,6 +288,13 @@ nonisolated final class MicrophoneFeed: AudioFeed, @unchecked Sendable {
                     DispatchQueue.global(qos: .utility).async {
                         Self.lock.lock()
                         defer { Self.lock.unlock() }
+                        // Only the owner tears down. A stream that was
+                        // superseded has already handed the engine over, and
+                        // whoever took it has cleaned up after it — stopping it
+                        // from here would pull the tap out of the capture that
+                        // is running now.
+                        guard Self.owner == mine else { return }
+                        Self.resign(mine)
                         // `engine` is captured, not read back off the class: by
                         // the time this runs the device may have changed and
                         // the current engine may be a different object, which
@@ -251,12 +306,33 @@ nonisolated final class MicrophoneFeed: AudioFeed, @unchecked Sendable {
 
                 engine.prepare()
                 try engine.start()
+
+                // The engine stops itself when its device goes away — AirPods
+                // disconnecting, a microphone unplugged mid-sentence — and
+                // takes the tap with it. Nothing else would ever tell the
+                // reader, which would sit on a source that had quietly ended.
+                //
+                // Dispatched rather than handled inline because this can be
+                // posted on the thread that is already inside `chunks()`, and
+                // the lock is not recursive.
+                Self.configurationWatch = NotificationCenter.default.addObserver(
+                    forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil
+                ) { _ in
+                    DispatchQueue.global(qos: .utility).async {
+                        Self.lock.lock()
+                        defer { Self.lock.unlock() }
+                        guard Self.owner == mine else { return }
+                        Self.active?.finish()
+                    }
+                }
+
                 log.info(
                     """
                     \(self.label, privacy: .public) open at \(rate, privacy: .public) Hz, \
                     \(format.channelCount, privacy: .public) ch
                     """)
             } catch {
+                Self.resign(mine)
                 input.removeTap(onBus: 0)
                 continuation.finish(throwing: error)
             }
