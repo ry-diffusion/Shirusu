@@ -25,7 +25,18 @@ struct CaptionView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var session: TranscriptionSession? { app.session }
-    private var isListening: Bool { session?.phase.isBusy ?? false }
+
+    /// Whether the app is answering a press right now.
+    ///
+    /// Read off the machine first, and that is the whole point: the machine
+    /// moves on the press itself, while the session's phase only follows once
+    /// the capture task has been scheduled and the microphone asked for. This
+    /// bar is the app's answer to a key going down, so it goes up on the key
+    /// going down rather than a turn of the run loop later.
+    private var isListening: Bool {
+        app.activity.state == .dictating || (session?.phase.isBusy ?? false)
+    }
+
     private var hasText: Bool { !(session?.transcript.isEmpty ?? true) }
 
     /// Whether the bar should say what it is doing.

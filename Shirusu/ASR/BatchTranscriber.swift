@@ -75,10 +75,26 @@ actor BatchTranscriber {
     private let manager = AsrManager(config: .default)
     private var isLoaded = false
 
-    /// Idempotent: called at the start of every utterance, loads once.
+    /// The load in flight, so that everyone wanting the model waits on one
+    /// piece of work rather than starting another.
+    ///
+    /// Being an actor does not give this for free. `load` suspends on its way
+    /// through, and a second call arriving during that suspension found
+    /// `isLoaded` still false and loaded the weights all over again. There are
+    /// three callers now — the launch warm-up, the preview loop and the
+    /// release pass — and a press short enough to end mid-load has all three
+    /// in the air at once.
+    private var loading: Task<Void, Error>?
+
+    /// Idempotent, and safe to call from anywhere at any time.
     func load(_ models: AsrModels) async throws {
-        guard !isLoaded else { return }
-        try await manager.loadModels(models)
+        if isLoaded { return }
+        if let loading { return try await loading.value }
+
+        let task = Task { try await manager.loadModels(models) }
+        loading = task
+        defer { loading = nil }
+        try await task.value
         isLoaded = true
     }
 

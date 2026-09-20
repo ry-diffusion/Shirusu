@@ -219,6 +219,15 @@ nonisolated final class MicrophoneFeed: AudioFeed, @unchecked Sendable {
             ?? String(localized: "Microphone", comment: "Capture source")
     }
 
+    /// Whether the microphone has already been granted.
+    ///
+    /// The one answer that can be given without waiting, which is what lets a
+    /// press open the device on the turn it arrived on rather than the next
+    /// one. Every press but the very first takes this path.
+    static var isAuthorised: Bool {
+        AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+    }
+
     static func requestAccess() async -> Bool {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized: return true

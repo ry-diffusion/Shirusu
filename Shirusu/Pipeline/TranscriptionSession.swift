@@ -157,17 +157,25 @@ final class TranscriptionSession {
         run = Task { [weak self] in
             guard let self else { return }
             do {
-                try await self.engine.load(self.models)
                 // Captions keep a little more than the preview reads, so the
                 // window is always full; an utterance keeps all of it.
                 await self.capture.reset(
                     limit: intent == .continuous ? Self.previewWindow + 4 : nil
                 )
+
+                // The microphone opens before the model is asked for, and away
+                // from the main actor, which is where this task runs.
+                //
+                // Loading is idempotent and usually instant because launch
+                // warms it, but "usually" was carrying a great deal of weight:
+                // a press that landed while the warm-up was still running
+                // waited for the whole CoreML graph with the microphone shut,
+                // and everything said in the meantime was simply gone. The
+                // buffer fills from the first moment now, and the model
+                // catches up with it.
+                let stream = await feed.opened()
                 self.phase = .running
                 self.startRolling()
-
-                // Away from the main actor, which is where this task runs.
-                let stream = await feed.opened()
 
                 for try await chunk in stream {
                     // `isStopping` is a release; cancellation is a discard.
@@ -183,6 +191,10 @@ final class TranscriptionSession {
                     _ = await self.capture.take()
                 } else {
                     self.phase = .finishing
+                    // Whatever is left of the load is paid for here, where
+                    // there is already something to decode, rather than in
+                    // front of the first word.
+                    try await self.engine.load(self.models)
                     let final = try await self.engine.transcribe(self.capture.take())
                     if !final.isEmpty {
                         self.transcript.apply(confirmed: final, volatile: "")
@@ -214,6 +226,12 @@ final class TranscriptionSession {
     /// on its own rather than saturating the Neural Engine.
     private func startRolling() {
         rolling = Task { [weak self] in
+            // Nothing can be read before the model is here, so the wait for it
+            // lives inside the preview loop rather than in front of the
+            // microphone. The buffer is filling while this happens, and a
+            // cancelled run stops waiting with it.
+            if let self { try? await self.engine.load(self.models) }
+
             while !Task.isCancelled {
                 guard let self else { return }
 

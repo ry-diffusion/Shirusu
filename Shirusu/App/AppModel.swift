@@ -558,26 +558,42 @@ extension AppModel {
         let intent: TranscriptionSession.Intent =
             purpose == .dictation ? .utterance : .continuous
 
+        // Started on the turn the press arrived on whenever it can be, which
+        // is every press but the first. There is nothing to wait for once
+        // permission has been granted, and spending a turn of the run loop
+        // discovering that put the whole capture a beat behind the key.
+        //
+        // The tap asks the system for permission on first start, and reports a
+        // refusal as a thrown error rather than silence, so it never waits.
+        let ready: AudioFeed? = switch source {
+        case .microphone:
+            MicrophoneFeed.isAuthorised
+                ? MicrophoneFeed(device: inputs.resolve(inputDeviceUID))
+                : nil
+        case .systemAudio:
+            SystemAudioFeed()
+        }
+
+        if let ready {
+            session.start(ready, intent: intent)
+            return
+        }
+
+        // Only a first press reaches here: the microphone has never been
+        // asked for, and asking is something that has to be awaited.
         Task { [weak self] in
             guard let self else { return }
-            switch source {
-            case .microphone:
-                guard await MicrophoneFeed.requestAccess() else {
-                    let message = MicrophoneError.accessDenied.localizedDescription
-                    self.captureProblem = .listening(message, remedy: .microphone)
-                    self.activity.move(to: .failed(message))
-                    self.activity.move(to: .idle)
-                    return
-                }
-                session.start(
-                    MicrophoneFeed(device: self.inputs.resolve(self.inputDeviceUID)),
-                    intent: intent
-                )
-            case .systemAudio:
-                // The tap asks the system for permission on first start, and
-                // reports a refusal as a thrown error rather than silence.
-                session.start(SystemAudioFeed(), intent: intent)
+            guard await MicrophoneFeed.requestAccess() else {
+                let message = MicrophoneError.accessDenied.localizedDescription
+                self.captureProblem = .listening(message, remedy: .microphone)
+                self.activity.move(to: .failed(message))
+                self.activity.move(to: .idle)
+                return
             }
+            session.start(
+                MicrophoneFeed(device: self.inputs.resolve(self.inputDeviceUID)),
+                intent: intent
+            )
         }
     }
 
