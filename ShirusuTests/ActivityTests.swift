@@ -110,13 +110,16 @@ struct ActivityTests {
         }
     }
 
-    @Test("A failure does not lead anywhere but idle")
+    /// `.dictating` is deliberately not here: the Globe key is an escape hatch
+    /// and wins from a failure too, which is what `pressAfterFailure` asserts.
+    /// This test predates that and went on insisting on the opposite.
+    @Test("A failure leads nowhere but idle, or back into dictating")
     func failureIsATerminus() {
         let activity = Activity()
         activity.move(to: .failed("broken"))
-        #expect(!activity.move(to: .dictating))
         #expect(!activity.move(to: .captioning))
         #expect(!activity.move(to: .delivered))
+        #expect(activity.move(to: .idle))
     }
 
     @Test("Moving to where you already are is not a failure")
