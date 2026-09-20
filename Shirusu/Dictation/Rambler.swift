@@ -248,12 +248,24 @@ final class Rambler {
 
     /// The model's answer, streamed, so that a long one and a stuck one can be
     /// told apart.
+    ///
+    /// The generation runs in a task of its own and is *abandoned* when it
+    /// stalls rather than waited for. A task group read better, and is what
+    /// this was, but a group does not return until every child has finished —
+    /// so a model that stops answering and then declines to notice it has been
+    /// cancelled would hold the caller for as long as it liked, which is the
+    /// exact failure the timeout exists to end.
     private static func generate(with session: LanguageModelSession, prompt: String) async throws
         -> String
     {
         let pulse = Pulse()
-        return try await withThrowingTaskGroup(of: String?.self) { group in
-            group.addTask {
+        let answer = Answer()
+
+        // Detached, so the streaming stays off the main actor: these statics
+        // are main-actor isolated and an inheriting task would decode a page
+        // of text there.
+        let work = Task.detached(priority: .userInitiated) {
+            do {
                 var latest = ""
                 for try await snapshot in session.streamResponse(
                     to: prompt, options: GenerationOptions(temperature: 0)
@@ -261,20 +273,34 @@ final class Rambler {
                     latest = snapshot.content
                     await pulse.beat()
                 }
-                return latest
+                await answer.settle(.success(latest))
+            } catch {
+                await answer.settle(.failure(error))
             }
-            group.addTask {
-                while true {
-                    try await Task.sleep(for: .seconds(1))
-                    if await pulse.silence() > stall { throw Timeout() }
-                }
-            }
-            // Whichever settles first. The watchdog only ever throws, so a
-            // value here is the finished answer.
-            defer { group.cancelAll() }
-            guard let first = try await group.next(), let text = first else { throw Timeout() }
-            return text
         }
+        defer { work.cancel() }
+
+        // Polled rather than awaited, because a wait is the thing that cannot
+        // be abandoned. Fifty milliseconds is nothing beside a response that
+        // takes a second at its very fastest.
+        while true {
+            if let settled = await answer.reached() { return try settled.get() }
+            if await pulse.silence() > stall { throw Timeout() }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+    }
+
+    /// Where a generation leaves its result, for a caller that may have given
+    /// up on it by the time it arrives.
+    private actor Answer {
+        private var value: Result<String, Error>?
+
+        func settle(_ result: Result<String, Error>) {
+            guard value == nil else { return }
+            value = result
+        }
+
+        func reached() -> Result<String, Error>? { value }
     }
 
     /// When the model last produced something.
