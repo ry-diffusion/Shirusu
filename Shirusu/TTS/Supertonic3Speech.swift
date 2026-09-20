@@ -88,8 +88,8 @@ final class SpeechSession {
     /// is not spent reading a multi-gigabyte bundle off disk. Nothing is
     /// fetched here: a backend whose weights have not been downloaded yet is
     /// left alone, and keeps its honest download state on the first request.
-    func prepare(for backend: SpeechBackend) {
-        Task { [engine] in await engine.preload(backend) }
+    func prepare(for backend: SpeechBackend, cloning: CloningEngine) {
+        Task { [engine] in await engine.preload(backend, cloning: cloning) }
     }
 
     func speak(
@@ -400,21 +400,41 @@ private actor SpeechEngine {
 
     /// Warm a backend without synthesizing anything. Only weights already in
     /// the cache are loaded, so merely opening the tab never starts a download.
-    func preload(_ backend: SpeechBackend) async {
-        switch backend {
-        case .supertonic3:
-            // FluidAudio drives its own download inside `initialize`, with no
-            // way to ask whether the assets are already there, so warming this
-            // one could not tell a disk read from a fetch.
-            break
-        case .mlxAudio:
+    func preload(_ backend: SpeechBackend, cloning: CloningEngine) async {
+        // Letting go comes first and unconditionally. Copying a voice no longer
+        // says which model does it, so warming on the mode alone used to read a
+        // gigabyte and a half of Chatterbox for someone set to higher quality,
+        // then throw it away on the first press.
+        let wanted = Self.heavyModel(for: backend, cloning: cloning)
+        releaseModels(except: wanted)
+
+        switch wanted {
+        case .chatterbox:
             guard chatterboxMLX == nil, Self.hasDownloadedChatterboxMLX else { return }
             _ = try? await loadChatterboxMLX(progress: { _ in })
-        case .voiceDesign:
+        case .voxcpm:
             // No cheap way to ask whether these weights are already here: the
             // repo that answers depends on which one loaded last time. Warming
             // it would risk starting a 3 GB download from opening a tab.
             break
+        case nil:
+            // FluidAudio drives Supertonic's own download inside `initialize`,
+            // with no way to ask whether the assets are already there, so
+            // warming it could not tell a disk read from a fetch.
+            break
+        }
+    }
+
+    /// Which multi-gigabyte model a mode will actually reach for, which is no
+    /// longer the mode itself now that a copied voice can come from either.
+    private static func heavyModel(
+        for backend: SpeechBackend,
+        cloning: CloningEngine
+    ) -> HeavyModel? {
+        switch backend {
+        case .supertonic3: nil
+        case .voiceDesign: .voxcpm
+        case .mlxAudio: cloning == .detailed ? .voxcpm : .chatterbox
         }
     }
 
@@ -429,7 +449,7 @@ private actor SpeechEngine {
     /// asking to carry both at once. Chatterbox has no `unload`, so letting go
     /// of the reference and clearing the cache is all there is; VoxCPM2 has one
     /// and it is worth calling.
-    private func releaseModels(except wanted: HeavyModel) {
+    private func releaseModels(except wanted: HeavyModel?) {
         var freed = false
         if wanted != .chatterbox, chatterboxMLX != nil {
             chatterboxMLX = nil

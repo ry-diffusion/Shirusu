@@ -63,7 +63,7 @@ struct TextToSpeechView: View {
                 .onChange(of: backend) { _, backend in
                     if backend != .mlxAudio { isLyricsMode = false }
                     if backend == .mlxAudio { advancedTab = .voiceCloning }
-                    app.speech.prepare(for: backend)
+                    app.speech.prepare(for: backend, cloning: cloning)
                 }
 
                 Picker("Language", selection: $language) {
@@ -108,7 +108,10 @@ struct TextToSpeechView: View {
         .scrollContentBackground(.hidden)
         .background(Ink.canvas)
         .toolbar { toolbarItems }
-        .onAppear { app.speech.prepare(for: backend) }
+        .onAppear { app.speech.prepare(for: backend, cloning: cloning) }
+        // Switching quality switches models, so it is a reason to let the
+        // other one go even though nothing has been pressed yet.
+        .onChange(of: cloning) { app.speech.prepare(for: backend, cloning: cloning) }
         .onDisappear { app.speech.stop() }
         .sheet(isPresented: $isManagingVoices) {
             VoiceProfilesView(language: language).environment(app)
