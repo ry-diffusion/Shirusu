@@ -1,4 +1,5 @@
 import AVFoundation
+import AppKit
 import FoundationModels
 import SwiftUI
 
@@ -110,10 +111,10 @@ struct DictationView: View {
 
             Section {
                 InputDevicePicker()
-                if microphone != .authorized {
-                    MicrophoneRow(status: microphone) {
-                        Task { microphone = await MicrophoneFeed.requestAccess() ? .authorized : .denied }
-                    }
+                // Only a refusal is worth saying in advance. Never having been
+                // asked is not a problem to report: holding the button asks.
+                if microphone == .denied || microphone == .restricted {
+                    MicrophoneRow()
                 }
             }
 
@@ -126,6 +127,8 @@ struct DictationView: View {
                 }
             }
         }
+        .captureProblemAlert()
+        .onAppear { microphone = AVCaptureDevice.authorizationStatus(for: .audio) }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .background(Ink.canvas)
@@ -146,28 +149,18 @@ struct DictationView: View {
 
 /// Three steps, because that is genuinely all of it.
 private struct MicrophoneRow: View {
-    var status: AVAuthorizationStatus
-    var request: () -> Void
-
     var body: some View {
-        switch status {
-        case .notDetermined:
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Shirusu has not asked for the microphone yet.")
-                    .font(.system(size: 12))
-                Button("Ask now", action: request)
-                    .buttonStyle(.link)
-                    .font(.system(size: 11))
+        VStack(alignment: .leading, spacing: 6) {
+            Label("Microphone access is off", systemImage: "mic.slash.fill")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.orange)
+            Button("Open Settings") {
+                if let url = CaptureProblem.Remedy.microphone.url {
+                    NSWorkspace.shared.open(url)
+                }
             }
-        default:
-            VStack(alignment: .leading, spacing: 6) {
-                Label("Microphone access is off", systemImage: "mic.slash.fill")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.orange)
-                Text("Turn it on for Shirusu in Privacy and Security settings.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
+            .buttonStyle(.link)
+            .font(.system(size: 11))
         }
     }
 }

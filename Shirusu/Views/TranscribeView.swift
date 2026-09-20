@@ -46,8 +46,8 @@ struct TranscribeView: View {
                 if case .failed(let message) = session.phase { problem = message }
             }
             .onChange(of: app.captureProblem) {
-                if let message = app.captureProblem {
-                    problem = message
+                if let trouble = app.captureProblem {
+                    problem = trouble.message
                     app.clearCaptureProblem()
                 }
             }

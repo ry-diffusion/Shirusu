@@ -135,16 +135,6 @@
         }
       }
     },
-    "Ask now" : {
-      "localizations" : {
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pedir agora"
-          }
-        }
-      }
-    },
     "Balanced" : {
       "comment" : "Built-in profile name",
       "localizations" : {
@@ -1227,16 +1217,6 @@
         }
       }
     },
-    "Shirusu has not asked for the microphone yet." : {
-      "localizations" : {
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "O Shirusu ainda não pediu o microfone."
-          }
-        }
-      }
-    },
     "Shirusu is fetching Nemotron, the speech model it transcribes with. This happens once. Afterwards everything runs on this Mac, with nothing sent anywhere." : {
       "comment" : "Explains the one-time model download",
       "localizations" : {
@@ -1507,16 +1487,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Testar"
-          }
-        }
-      }
-    },
-    "Turn it on for Shirusu in Privacy and Security settings." : {
-      "localizations" : {
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ligue para o Shirusu nos ajustes de Privacidade e Segurança."
           }
         }
       }
@@ -1835,6 +1805,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A barra nunca toma o foco, então não interrompe o que você está fazendo, e continua rodando enquanto você usa o resto do app."
+          }
+        }
+      }
+    },
+    "Could not start listening" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível começar a ouvir"
+          }
+        }
+      }
+    },
+    "Could not type the text" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível digitar o texto"
+          }
+        }
+      }
+    },
+    "Open Settings" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir Ajustes"
           }
         }
       }

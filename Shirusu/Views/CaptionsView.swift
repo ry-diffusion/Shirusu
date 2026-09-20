@@ -66,6 +66,7 @@ struct CaptionsView: View {
                 Text("The Globe key dictates, from whichever screen you are on. Live captions have this switch instead, because you cannot hold a key through a film.")
             }
         }
+        .captureProblemAlert()
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .background(Ink.canvas)

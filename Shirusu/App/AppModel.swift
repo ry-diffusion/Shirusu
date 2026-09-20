@@ -283,7 +283,7 @@ final class AppModel {
         didSet { UserDefaults.standard.set(captureSource.rawValue, forKey: AppModel.sourceKey) }
     }
     /// Surfaced so the UI can explain a refusal instead of going quiet.
-    private(set) var captureProblem: String?
+    private(set) var captureProblem: CaptureProblem?
 
     let hotkey = GlobeHotkeyMonitor()
     let captions = CaptionPanel()
@@ -460,7 +460,9 @@ extension AppModel {
                 // Never drop the words on the floor: if they could not be
                 // typed, they are still on the clipboard and the screen says
                 // what went wrong.
-                captureProblem = error.localizedDescription
+                captureProblem = .typing(
+                    error.localizedDescription,
+                    remedy: error is TextInsertion.Failure ? .accessibility : nil)
                 copyToClipboard(text)
             }
         case .clipboard:
@@ -553,7 +555,7 @@ extension AppModel {
             case .microphone:
                 guard await MicrophoneFeed.requestAccess() else {
                     let message = MicrophoneError.accessDenied.localizedDescription
-                    self.captureProblem = message
+                    self.captureProblem = .listening(message, remedy: .microphone)
                     self.activity.move(to: .failed(message))
                     self.activity.move(to: .idle)
                     return
