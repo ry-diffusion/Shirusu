@@ -211,6 +211,14 @@ final class AppModel {
     /// and output playback, while dictation only needs a microphone and text.
     let speech = SpeechSession()
 
+    /// The saved reference voices, and which one a copy should use.
+    let voices = VoiceProfiles()
+
+    /// The same engine the two sessions transcribe with, kept here so a voice
+    /// recorded for cloning can be checked against what it was meant to say.
+    /// Absent until the model has landed.
+    private(set) var transcriber: BatchTranscriber?
+
     /// Whether to tidy dictation before it is delivered.
     var isRambler: Bool = UserDefaults.standard.bool(forKey: AppModel.ramblerKey) {
         didSet {
@@ -310,6 +318,7 @@ final class AppModel {
             }
             // One engine behind both, so the weights load once.
             let engine = BatchTranscriber()
+            transcriber = engine
             let live = TranscriptionSession(models: models, engine: engine)
             live.setContinuousUpdateInterval(captionUpdateRate.interval)
             // Only an utterance run finishes, and only dictation makes one:

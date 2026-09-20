@@ -78,6 +78,24 @@ enum ModelSetup {
         case downloading(completed: Int, total: Int)
         case compiling(model: String)
         case loading
+
+        /// One line, for the setup screen and the activity strip alike.
+        var detail: String {
+            switch self {
+            case .checking:
+                String(localized: "Checking what is already here", comment: "Setup step")
+            case .listing:
+                String(localized: "Listing model files", comment: "Setup step")
+            case .downloading(let completed, let total):
+                String(
+                    localized: "Downloading Nemotron, \(completed) of \(total) files",
+                    comment: "Setup step")
+            case .compiling(let model):
+                String(localized: "Compiling \(model)", comment: "Setup step")
+            case .loading:
+                String(localized: "Loading the model", comment: "Setup step")
+            }
+        }
     }
 
     private static let log = Logger(subsystem: "br.com.zesmoi.Shirusu", category: "models")

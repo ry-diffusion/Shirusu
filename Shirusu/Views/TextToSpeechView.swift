@@ -16,8 +16,7 @@ struct TextToSpeechView: View {
     @State private var language: SpeechSession.Language = .portuguese
     @State private var voice: SpeechSession.Voice = .m1
     @State private var mlxAudio = MLXAudioControls()
-    @State private var referenceAudio: URL?
-    @State private var isImportingReference = false
+    @State private var isManagingVoices = false
     @State private var isLyricsMode = false
     @State private var lyricLines: [VoiceLine] = []
     @State private var advancedTab: AdvancedTab = .voiceCloning
@@ -84,16 +83,6 @@ struct TextToSpeechView: View {
                 advancedWorkspace
             }
 
-            if speech.phase == .preparing {
-                Section {
-                    WorkingProgress(
-                        fraction: speech.downloadFraction,
-                        status: preparationStatus)
-                } footer: {
-                    Text("The first copy of a voice downloads its model. It stays on this Mac afterwards.")
-                }
-            }
-
             if case .failed(let message) = speech.phase {
                 Section {
                     Label(message, systemImage: "exclamationmark.triangle.fill")
@@ -111,11 +100,8 @@ struct TextToSpeechView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) { controls }
         .onAppear { app.speech.prepare(for: backend) }
         .onDisappear { app.speech.stop() }
-        .fileImporter(
-            isPresented: $isImportingReference,
-            allowedContentTypes: [.audio, .mpeg4Audio, .wav, .aiff, .mp3]
-        ) { result in
-            if case .success(let url) = result { referenceAudio = url }
+        .sheet(isPresented: $isManagingVoices) {
+            VoiceProfilesView(language: language).environment(app)
         }
     }
 
@@ -237,21 +223,32 @@ struct TextToSpeechView: View {
     @ViewBuilder
     private var voiceCloning: some View {
         Section {
-            Label("The recording voice will be used", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(Ink.accent)
-            if needsReference {
-                if let referenceAudio {
-                    LabeledContent("Selected recording", value: referenceAudio.lastPathComponent).lineLimit(1)
-                    Button("Replace recording…") { isImportingReference = true }
-                    Button("Remove recording", role: .destructive) { self.referenceAudio = nil }
-                } else {
-                    Button("Choose recording…") { isImportingReference = true }
+            if app.voices.all.isEmpty {
+                Button("Record or choose a voice…") { isManagingVoices = true }
+            } else {
+                Picker("Voice", selection: Binding(
+                    get: { app.voices.selection },
+                    set: { app.voices.selection = $0 }
+                )) {
+                    Text("None").tag(VoiceProfile.ID?.none)
+                    ForEach(app.voices.all) { profile in
+                        Text(profile.name).tag(Optional(profile.id))
+                    }
                 }
+                if let selected = app.voices.selected, !selected.isLongEnough {
+                    Label(
+                        "This recording is under six seconds, which is less than the model conditions on.",
+                        systemImage: "clock"
+                    )
+                    .font(Typeface.caption)
+                    .foregroundStyle(.orange)
+                }
+                Button("Manage voices…") { isManagingVoices = true }
             }
         } header: {
             Text("Voice Cloning")
         } footer: {
-            Text("Required. Use a clean recording with only one person speaking for 5 to 20 seconds. The recording stays on this Mac, and its temporary copy is deleted when the voice is ready. Only use your own voice or a voice you are authorized to use.")
+            Text("Required. Record a line here or bring a file: one person, somewhere quiet, six to twenty seconds. The model conditions on the first ten. Saved voices stay on this Mac. Only use your own voice or a voice you are authorized to use.")
         }
     }
 
@@ -289,6 +286,11 @@ struct TextToSpeechView: View {
 
     private var needsReference: Bool { backend == .mlxAudio }
 
+    /// The selected profile's recording on disk, or nothing chosen yet.
+    private var referenceAudio: URL? {
+        app.voices.selection.map(app.voices.reference)
+    }
+
     /// The preset whose value is currently set, or `nil` for anything else.
     /// Reading the picker off the value rather than storing it separately is
     /// what keeps the drawer and the presets from disagreeing.
@@ -322,10 +324,6 @@ struct TextToSpeechView: View {
         }
     }
 
-    private var preparationStatus: String {
-        let percentage = Int((app.speech.downloadFraction * 100).rounded())
-        return String(localized: "Getting the voice ready (\(percentage)%)")
-    }
 
     private var modelDescription: String {
         switch backend {

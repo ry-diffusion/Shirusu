@@ -6,6 +6,9 @@ struct RootView: View {
     var body: some View {
         Workbench()
             .background(Ink.canvas)
+            .safeAreaInset(edge: .bottom, spacing: 0) { ActivityStrip() }
+            .animation(Motion.settle, value: app.stage)
+            .animation(Motion.settle, value: app.speech.phase)
             .task { await app.bootstrap() }
     }
 }

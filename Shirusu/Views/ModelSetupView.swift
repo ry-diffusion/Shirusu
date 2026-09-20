@@ -24,7 +24,7 @@ struct ModelSetupView: View {
                 .frame(maxWidth: 380)
                 .padding(.top, 7)
 
-            WorkingProgress(fraction: fraction, status: statusLine, width: 300)
+            WorkingProgress(fraction: fraction, status: step.detail, width: 300)
                 .padding(.top, 30)
 
             Text("Text to Speech does not use this model, and works now.")
@@ -56,22 +56,6 @@ struct ModelSetupView: View {
                 comment: "Shown while a cached model is loaded")
     }
 
-    private var statusLine: String {
-        switch step {
-        case .checking:
-            return String(localized: "Checking what is already here", comment: "Setup step")
-        case .listing:
-            return String(localized: "Listing model files", comment: "Setup step")
-        case .downloading(let completed, let total):
-            return String(
-                localized: "Downloading Nemotron, \(completed) of \(total) files",
-                comment: "Setup step")
-        case .compiling(let model):
-            return String(localized: "Compiling \(model)", comment: "Setup step")
-        case .loading:
-            return String(localized: "Loading the model", comment: "Setup step")
-        }
-    }
 }
 
 /// Setup failed. Say what broke and offer the one useful action.
