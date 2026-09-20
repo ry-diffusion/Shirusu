@@ -2420,6 +2420,26 @@
           }
         }
       }
+    },
+    "Could not save the voice" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível salvar a voz"
+          }
+        }
+      }
+    },
+    "Somewhere quiet, one voice, and stay about the same distance from the microphone. It stops on its own once you have read the line." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Num lugar silencioso, uma voz só, e fique mais ou menos à mesma distância do microfone. Ele para sozinho quando você terminar de ler a frase."
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

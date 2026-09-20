@@ -426,10 +426,11 @@ private actor SpeechEngine {
         }
         let model = try await loadChatterboxMLX(progress: progress)
 
-        // `AudioDecoder` gives the model a mono Float32 reference at 16 kHz.
-        // It supports every user-selectable file type and keeps its security
-        // scope handling inside the app rather than leaking it into the model.
-        let reference = try await AudioDecoder.decode(referenceAudio)
+        // Decoded at the rate the model builds its prompt mel at, not at the
+        // recogniser's. At 16 kHz the mel was an upsample with nothing above
+        // 8 kHz in it, which put a ceiling on every copied voice.
+        let reference = try await AudioDecoder.decode(
+            referenceAudio, sampleRate: AudioFormats.referenceSampleRate)
         willSynthesize()
         let lines = lyricLines.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         let requests: [(text: String, controls: MLXAudioControls)]
@@ -442,7 +443,8 @@ private actor SpeechEngine {
         let samples = try withGenerationMemoryCap { () throws -> [Float] in
             // Conditioning depends on the recording, never on the text, so a
             // lyric pays for it once rather than once per line.
-            let voice = conditioning(for: reference.samples, model: model)
+            let voice = conditioning(
+                for: reference.samples, sampleRate: reference.sampleRate, model: model)
             var samples: [Float] = []
             for (index, request) in requests.enumerated() {
                 if Task.isCancelled { throw CancellationError() }
@@ -487,7 +489,11 @@ private actor SpeechEngine {
     /// rebuilds all of this on every call. The S3Gen prompt wants 24 kHz capped
     /// at ten seconds, its tokenizer and CAMPPlus want that same slice at
     /// 16 kHz, and the voice encoder wants the untruncated take.
-    private func conditioning(for samples: [Float], model: ChatterboxTTSModel) -> ClonedVoice {
+    private func conditioning(
+        for samples: [Float],
+        sampleRate: Int,
+        model: ChatterboxTTSModel
+    ) -> ClonedVoice {
         let digest = Self.digest(of: samples)
         if let index = clonedVoices.firstIndex(where: { $0.digest == digest }) {
             let cached = clonedVoices.remove(at: index)
@@ -495,20 +501,28 @@ private actor SpeechEngine {
             return cached
         }
 
-        let reference24k = Array(
-            AudioFileLoader.resample(
-                samples, from: AudioFormats.sampleRate, to: ChatterboxS3Gen.sampleRate,
-                quality: .mastering
-            ).prefix(ChatterboxTTSModel.decCondLen))
+        let at24k = sampleRate == ChatterboxS3Gen.sampleRate
+            ? samples
+            : AudioFileLoader.resample(
+                samples, from: sampleRate, to: ChatterboxS3Gen.sampleRate, quality: .mastering)
+        let reference24k = Array(at24k.prefix(ChatterboxTTSModel.decCondLen))
         let reference16k = AudioFileLoader.resample(
             reference24k, from: ChatterboxS3Gen.sampleRate, to: ChatterboxS3Gen.tokenSampleRate,
             quality: .mastering)
 
+        // The voice encoder and the speech tokenizer want the whole take at
+        // 16 kHz, whatever it arrived as.
+        let at16k = sampleRate == ChatterboxS3Gen.tokenSampleRate
+            ? samples
+            : AudioFileLoader.resample(
+                samples, from: sampleRate, to: ChatterboxS3Gen.tokenSampleRate,
+                quality: .mastering)
+
         let s3Reference = model.s3gen.embedRef(refWav24k: reference24k, refWav16k: reference16k)
-        let speakerEmbedding = model.voiceEncoder.embed(samples: samples)
+        let speakerEmbedding = model.voiceEncoder.embed(samples: at16k)
         let promptTokens = Array(
             model.s3gen.tokenizer
-                .encode(Array(samples.prefix(ChatterboxTTSModel.encCondLen)))
+                .encode(Array(at16k.prefix(ChatterboxTTSModel.encCondLen)))
                 .prefix(ChatterboxTTSModel.speechCondPromptLen))
 
         // Resolve the graphs before storing them: a cached array still carrying

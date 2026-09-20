@@ -28,6 +28,7 @@ struct VoiceProfilesView: View {
     @State private var isChecking = false
     @State private var isImporting = false
     @State private var renaming: VoiceProfile.ID?
+    @State private var problem: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -48,6 +49,18 @@ struct VoiceProfilesView: View {
         }
         .frame(width: 540, height: 460)
         .background(Ink.canvas)
+        .alert(
+            Text("Could not save the voice"),
+            isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })
+        ) {
+            Button("OK", role: .cancel) { problem = nil }
+        } message: {
+            Text(problem ?? "")
+        }
+        .onChange(of: recorder.take?.url) { _, url in
+            guard url != nil else { return }
+            Task { await review() }
+        }
         .fileImporter(
             isPresented: $isImporting,
             allowedContentTypes: [.audio, .mpeg4Audio, .wav, .aiff, .mp3]
@@ -93,7 +106,14 @@ struct VoiceProfilesView: View {
             case .reading:
                 Button("Cancel") { recorder.cancel(); stage = .list }
                 Spacer()
-                recordButton
+                if recorder.isRecording {
+                    Button("Stop") { Task { await recorder.finish() } }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+                        .disabled(recorder.duration < 1)
+                } else {
+                    recordButton
+                }
 
             case .review:
                 Button("Record again") { beginReading() }
@@ -207,9 +227,31 @@ struct VoiceProfilesView: View {
                     .frame(maxWidth: 420)
             }
 
+            if scriptLine != nil {
+                ProgressView(value: recorder.readSoFar)
+                    .progressViewStyle(.linear)
+                    .tint(Ink.accent)
+                    .frame(width: 240)
+                    .opacity(recorder.isRecording ? 1 : 0.25)
+            }
+
             meter
 
-            Text("Somewhere quiet, one voice, and stay about the same distance from the microphone. The model listens to the first ten seconds.")
+            // The words as they land. It is the same transcriber that decides
+            // when the line is done, so this is the reason it stops, not a
+            // decoration beside it.
+            if recorder.isRecording, !recorder.heard.isEmpty {
+                Text(recorder.heard)
+                    .font(Typeface.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 420)
+                    .lineLimit(2)
+            }
+
+            Text(scriptLine == nil
+                ? "Somewhere quiet, one voice, and stay about the same distance from the microphone. The model listens to the first ten seconds."
+                : "Somewhere quiet, one voice, and stay about the same distance from the microphone. It stops on its own once you have read the line.")
                 .font(Typeface.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -241,20 +283,16 @@ struct VoiceProfilesView: View {
     }
 
     private var recordButton: some View {
-        Group {
-            if recorder.isRecording {
-                Button("Stop", systemImage: "stop.fill") { Task { await stopReading() } }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.red)
-                    .disabled(recorder.duration < 1)
-            } else {
-                Button("Start recording", systemImage: "record.circle") {
-                    Task { await recorder.start(device: app.inputs.resolve(app.inputDeviceUID)) }
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Ink.accent)
+        Button("Start recording", systemImage: "record.circle") {
+            Task {
+                await recorder.start(
+                    device: app.inputs.resolve(app.inputDeviceUID),
+                    script: scriptLine,
+                    transcriber: app.transcriber)
             }
         }
+        .buttonStyle(.borderedProminent)
+        .tint(Ink.accent)
     }
 
     // MARK: What came back
@@ -333,8 +371,13 @@ struct VoiceProfilesView: View {
         lineIndex += 1
     }
 
-    private func stopReading() async {
-        guard let finished = await recorder.finish() else { return }
+    /// The take is in; decide what to say about it.
+    ///
+    /// The live pass drives the stop, but the stored verdict comes from one
+    /// more read of the whole take — the same split the caption preview makes
+    /// against the transcript it keeps.
+    private func review() async {
+        guard let finished = recorder.take else { return }
         take = finished
         name = defaultName
         stage = .review
@@ -342,7 +385,7 @@ struct VoiceProfilesView: View {
         guard let script = scriptLine, let transcriber = app.transcriber else { return }
         isChecking = true
         defer { isChecking = false }
-        let heard = (try? await transcriber.transcribe(finished.samples)) ?? ""
+        let heard = (try? await transcriber.transcribe(finished.heardSamples)) ?? ""
         check = VoiceProfile.Check(
             script: script,
             heard: heard,
@@ -351,11 +394,16 @@ struct VoiceProfilesView: View {
 
     private func save() {
         guard let take else { return }
-        try? app.voices.add(
-            name: name,
-            movingAudio: take.url,
-            duration: take.duration,
-            check: check)
+        do {
+            try app.voices.add(
+                name: name,
+                movingAudio: take.url,
+                duration: take.duration,
+                check: check)
+        } catch {
+            problem = error.localizedDescription
+            return
+        }
         self.take = nil
         check = nil
         stage = .list
@@ -366,20 +414,26 @@ struct VoiceProfilesView: View {
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
 
         // Decoded rather than copied: it gives the duration to show in the
-        // list, and normalises whatever container came in to the one shape the
-        // model reads anyway.
-        guard let decoded = try? await AudioDecoder.decode(url) else { return }
+        // list, and normalises whatever container came in to the rate the
+        // cloning model conditions at.
+        guard let decoded = try? await AudioDecoder.decode(
+            url, sampleRate: AudioFormats.referenceSampleRate)
+        else { return }
         let temporary = FileManager.default.temporaryDirectory
             .appending(path: "shirusu-import-\(UUID().uuidString).wav")
         guard (try? WavEncoder
-            .data(samples: decoded.samples, sampleRate: AudioFormats.sampleRate)
+            .data(samples: decoded.samples, sampleRate: decoded.sampleRate)
             .write(to: temporary)) != nil
         else { return }
 
-        try? app.voices.add(
-            name: url.deletingPathExtension().lastPathComponent,
-            movingAudio: temporary,
-            duration: decoded.duration)
+        do {
+            try app.voices.add(
+                name: url.deletingPathExtension().lastPathComponent,
+                movingAudio: temporary,
+                duration: decoded.duration)
+        } catch {
+            problem = error.localizedDescription
+        }
     }
 
     private var defaultName: String {

@@ -1,4 +1,5 @@
 import AVFoundation
+import AudioCommon
 import Foundation
 import Observation
 
@@ -48,11 +49,42 @@ nonisolated enum EnrollmentScript {
     }
 }
 
-/// Records a reference take from the microphone.
+/// Keeps the take at the microphone's own rate.
 ///
-/// It reuses `UtteranceBuffer`, which is already the app's answer to "keep this
-/// speech at 16 kHz", so a recording and a dictation are the same samples in
-/// the same shape — which is what lets the transcriber check one of them.
+/// `UtteranceBuffer` converts to 16 kHz because that is the only rate the
+/// recogniser accepts, and a reference built from it can never carry anything
+/// above 8 kHz. This keeps the second copy the cloning model wants.
+private actor NativeBuffer {
+    private(set) var rate: Double = 0
+    private var samples: [Float] = []
+
+    /// Channel zero rather than a downmix: a microphone puts its signal there,
+    /// and summing an interface's unused second input would only add its noise.
+    func append(_ buffer: AVAudioPCMBuffer) {
+        rate = buffer.format.sampleRate
+        guard let channel = buffer.floatChannelData?[0] else { return }
+        samples.append(
+            contentsOf: UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength)))
+    }
+
+    func reset() {
+        samples = []
+        rate = 0
+    }
+
+    func take() -> (samples: [Float], rate: Double) {
+        defer { samples = [] }
+        return (samples, rate)
+    }
+}
+
+/// Records a reference take from the microphone, and listens while it does.
+///
+/// Listening as it goes is what lets it stop on its own: the line someone was
+/// asked to read is known, so the recorder can tell when they have finished
+/// reading it rather than making them find the stop button. The cadence is the
+/// caption preview's — transcribe, measure what that cost, and never come back
+/// round faster than the model can finish.
 @MainActor
 @Observable
 final class VoiceRecorder {
@@ -66,17 +98,35 @@ final class VoiceRecorder {
     var level: Float = 0
     var duration: TimeInterval = 0
 
+    /// What the transcriber has caught so far. Empty until the first pass lands.
+    var heard = ""
+    /// How much of the line has come back, 0...1. Zero when there is no line.
+    var readSoFar: Double = 0
+
+    /// The finished take, however it finished.
+    private(set) var take: Take?
+
     /// Long enough that the tokens are not padded, short enough that the tail
     /// is past anything the model reads. See `EnrollmentScript`.
     static let wanted: ClosedRange<TimeInterval> = 6...20
 
+    /// The caption preview's everyday interval. A pass never runs faster than
+    /// the model can finish one, so this is a floor rather than a promise.
+    private static let listenInterval: Double = 0.6
+
     @ObservationIgnored private let buffer = UtteranceBuffer()
+    @ObservationIgnored private let native = NativeBuffer()
     @ObservationIgnored private var feed: MicrophoneFeed?
     @ObservationIgnored private var pump: Task<Void, Never>?
+    @ObservationIgnored private var listener: Task<Void, Never>?
 
     var isRecording: Bool { phase == .recording }
 
-    func start(device: InputDevice?) async {
+    func start(
+        device: InputDevice?,
+        script: String?,
+        transcriber: BatchTranscriber?
+    ) async {
         guard phase != .recording else { return }
         guard await MicrophoneFeed.requestAccess() else {
             phase = .failed(MicrophoneError.accessDenied.localizedDescription)
@@ -84,21 +134,31 @@ final class VoiceRecorder {
         }
 
         await buffer.reset(limit: nil)
+        await native.reset()
         duration = 0
         level = 0
+        heard = ""
+        readSoFar = 0
+        take = nil
         phase = .recording
 
         let feed = MicrophoneFeed(device: device)
         self.feed = feed
-        pump = Task { [weak self, buffer] in
+        pump = Task { [weak self, buffer, native] in
             do {
                 for try await chunk in feed.chunks() {
                     await buffer.append(chunk.buffer)
+                    await native.append(chunk.buffer)
                     let seconds = await buffer.duration
                     await MainActor.run {
                         guard let self, self.phase == .recording else { return }
                         self.level = chunk.peak
                         self.duration = seconds
+                        // However well it is going, twenty seconds is past
+                        // everything the model reads.
+                        if seconds >= Self.wanted.upperBound {
+                            Task { await self.finish() }
+                        }
                     }
                 }
             } catch {
@@ -108,41 +168,95 @@ final class VoiceRecorder {
                 }
             }
         }
+
+        if let transcriber {
+            listen(to: script, with: transcriber)
+        }
     }
 
-    /// Stop, and hand back the take as samples plus a file the decoder can read.
-    ///
-    /// The file lands in the temporary directory: whether it is worth keeping is
-    /// the profile store's decision, and it moves it out if so.
+    private func listen(to script: String?, with transcriber: BatchTranscriber) {
+        listener = Task { [weak self, buffer] in
+            while !Task.isCancelled {
+                let started = ContinuousClock.now
+                let samples = await buffer.snapshot()
+
+                if samples.count >= BatchTranscriber.minimumSamples {
+                    let text = (try? await transcriber.transcribe(samples)) ?? ""
+                    let matched = script.map {
+                        EnrollmentCheck.accuracy(script: $0, heard: text)
+                    } ?? 0
+
+                    await MainActor.run {
+                        guard let self, self.phase == .recording else { return }
+                        self.heard = text
+                        self.readSoFar = matched
+                        // The line is done. Waiting for a button press now only
+                        // records the silence after it.
+                        if script != nil, matched >= VoiceProfile.Check.passMark {
+                            Task { await self.finish() }
+                        }
+                    }
+                }
+
+                let elapsed = ContinuousClock.now - started
+                let cost = Double(elapsed.components.seconds)
+                    + Double(elapsed.components.attoseconds) / 1e18
+                try? await Task.sleep(for: .seconds(max(Self.listenInterval, cost)))
+            }
+        }
+    }
+
+    /// Stop, and keep the take as a 24 kHz file plus the 16 kHz the check reads.
     @discardableResult
     func finish() async -> Take? {
         guard phase == .recording else { return nil }
         pump?.cancel()
+        listener?.cancel()
         pump = nil
+        listener = nil
         feed = nil
         level = 0
         phase = .idle
 
-        let samples = await buffer.take()
-        guard !samples.isEmpty else { return nil }
+        let heardSamples = await buffer.take()
+        let (raw, rate) = await native.take()
+        guard !raw.isEmpty, rate > 0 else { return nil }
+
+        let reference = Int(rate) == AudioFormats.referenceSampleRate
+            ? raw
+            : AudioFileLoader.resample(
+                raw, from: Int(rate), to: AudioFormats.referenceSampleRate, quality: .mastering)
 
         let url = FileManager.default.temporaryDirectory
             .appending(path: "shirusu-take-\(UUID().uuidString).wav")
         do {
-            try WavEncoder.data(samples: samples, sampleRate: AudioFormats.sampleRate).write(to: url)
+            try WavEncoder
+                .data(samples: reference, sampleRate: AudioFormats.referenceSampleRate)
+                .write(to: url)
         } catch {
             phase = .failed(error.localizedDescription)
             return nil
         }
-        return Take(url: url, samples: samples)
+
+        let finished = Take(
+            url: url,
+            heardSamples: heardSamples,
+            duration: Double(reference.count) / Double(AudioFormats.referenceSampleRate))
+        take = finished
+        return finished
     }
 
     func cancel() {
         pump?.cancel()
+        listener?.cancel()
         pump = nil
+        listener = nil
         feed = nil
         level = 0
         duration = 0
+        heard = ""
+        readSoFar = 0
+        take = nil
         if case .failed = phase { return }
         phase = .idle
     }
@@ -152,10 +266,11 @@ final class VoiceRecorder {
     }
 
     nonisolated struct Take: Sendable {
+        /// 24 kHz on disk, which is what the cloning model conditions on.
         let url: URL
-        let samples: [Float]
-
-        var duration: TimeInterval { Double(samples.count) / Double(AudioFormats.sampleRate) }
+        /// The same take at 16 kHz, for the transcriber.
+        let heardSamples: [Float]
+        let duration: TimeInterval
     }
 }
 
