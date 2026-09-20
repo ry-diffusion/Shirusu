@@ -95,7 +95,6 @@ final class SpeechSession {
         backend: SpeechBackend,
         language: Language,
         voice: Voice,
-        chatterbox: ChatterboxControls,
         mlxAudio: MLXAudioControls,
         referenceAudio: URL?,
         lyricLines: [VoiceLine]
@@ -106,7 +105,7 @@ final class SpeechSession {
             return
         }
         guard backend != .mlxAudio || referenceAudio != nil else {
-            phase = .failed(String(localized: "Choose a voice recording before using Voice Cloning Advanced."))
+            phase = .failed(String(localized: "Choose a recording before copying a voice."))
             return
         }
 
@@ -131,7 +130,6 @@ final class SpeechSession {
                     text: text,
                     language: language.rawValue,
                     voice: Supertonic3Voice(rawValue: voice.rawValue) ?? .default,
-                    chatterbox: chatterbox,
                     mlxAudio: mlxAudio,
                     referenceAudio: localReference,
                     lyricLines: lyricLines,
@@ -199,57 +197,38 @@ final class SpeechSession {
     }
 }
 
-/// The local models exposed by the app. They intentionally remain distinct
-/// rather than treating voices as interchangeable: Supertonic has ten preset
-/// speakers, while FluidAudio's Chatterbox conversion currently has one.
+/// The two things someone can ask for, named by the result rather than by the
+/// model behind it: ten voices that are ready to speak, or their own voice
+/// copied from a recording. Both cover every language the app offers, so
+/// choosing one never changes what else is on the screen.
 enum SpeechBackend: String, CaseIterable, Identifiable, Sendable {
     case supertonic3
-    case chatterbox
     case mlxAudio
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
-        case .supertonic3: String(localized: "Supertonic 3")
-        case .chatterbox: String(localized: "Chatterbox (built-in voice)")
-        case .mlxAudio: String(localized: "Voice Cloning Advanced")
+        case .supertonic3: String(localized: "A ready voice")
+        case .mlxAudio: String(localized: "Copy a voice from a recording")
         }
     }
-
-    func supports(_ language: SpeechSession.Language) -> Bool {
-        switch self {
-        case .supertonic3:
-            true
-        case .chatterbox:
-            // FluidAudio's Chatterbox text frontend does not currently carry
-            // its Japanese/Korean transforms.
-            language != .japanese && language != .korean
-        case .mlxAudio:
-            true
-        }
-    }
-}
-
-/// Controls currently exposed by FluidAudio's Chatterbox Manager. They affect
-/// sampling and therefore delivery/prosody; they are not a substitute for a
-/// reference-voice or emotion embedding, neither of which the SDK exposes yet.
-struct ChatterboxControls: Sendable {
-    var guidance: Float = 0.5
-    var temperature: Float = 0.8
-    var seed: UInt64 = UInt64.random(in: 0..<UInt64.max)
 }
 
 /// These map one-to-one to speech-swift's native Chatterbox MLX clone API.
-/// Unlike FluidAudio's Chatterbox sampler values, `exaggeration` conditions
-/// the model's actual emotion vector.
+/// `exaggeration` conditions the model's actual emotion vector, which is why it
+/// is worth a control while the pure sampling knobs below are not.
 nonisolated struct MLXAudioControls: Sendable {
     var exaggeration: Float = 0.5
     var cfgWeight: Float = 0.5
     var temperature: Float = 0.8
-    var repetitionPenalty: Float = 1.2
-    var minP: Float = 0.05
-    var topP: Float = 1.0
+
+    /// Fixed. These three are sampling vocabulary — nobody can hear what a
+    /// min-p of 0.05 does, so they were a decision the screen had no business
+    /// asking for. The values are the ones `clone` defaults to.
+    let repetitionPenalty: Float = 1.2
+    let minP: Float = 0.05
+    let topP: Float = 1.0
 
     func adjusted(for line: VoiceLine) -> MLXAudioControls {
         var adjusted = self
@@ -349,9 +328,7 @@ private struct SpeechAudio: Sendable {
 /// dynamic-shape CPU/GPU fallback used by the upstream default.
 private actor SpeechEngine {
     private let supertonic = Supertonic3Manager(vectorEstimator: .aneBucketed(.int4))
-    private let chatterbox = ChatterboxManager()
     private var hasSupertonicPrepared = false
-    private var hasChatterboxPrepared = false
     private var supertonicStyles: [Supertonic3Voice: Supertonic3VoiceStyle] = [:]
     private var chatterboxMLX: ChatterboxTTSModel?
     private var chatterboxMLXLoad: Task<ChatterboxTTSModel, Error>?
@@ -366,10 +343,10 @@ private actor SpeechEngine {
     /// the cache are loaded, so merely opening the tab never starts a download.
     func preload(_ backend: SpeechBackend) async {
         switch backend {
-        case .supertonic3, .chatterbox:
+        case .supertonic3:
             // FluidAudio drives its own download inside `initialize`, with no
-            // way to ask whether the assets are already there, so warming these
-            // could not tell a disk read from a fetch.
+            // way to ask whether the assets are already there, so warming this
+            // one could not tell a disk read from a fetch.
             break
         case .mlxAudio:
             guard chatterboxMLX == nil, Self.hasDownloadedChatterboxMLX else { return }
@@ -382,7 +359,6 @@ private actor SpeechEngine {
         text: String,
         language: String,
         voice: Supertonic3Voice,
-        chatterbox controls: ChatterboxControls,
         mlxAudio: MLXAudioControls,
         referenceAudio: URL?,
         lyricLines: [VoiceLine],
@@ -393,10 +369,6 @@ private actor SpeechEngine {
         case .supertonic3:
             return try await synthesizeSupertonic(
                 text: text, language: language, voice: voice,
-                progress: progress, willSynthesize: willSynthesize)
-        case .chatterbox:
-            return try await synthesizeChatterbox(
-                text: text, language: language, controls: controls,
                 progress: progress, willSynthesize: willSynthesize)
         case .mlxAudio:
             guard let referenceAudio else {
@@ -435,28 +407,6 @@ private actor SpeechEngine {
         willSynthesize()
         let result = try await supertonic.synthesize(text: text, language: language, style: style)
         return .samples(result.samples, sampleRate: Supertonic3Constants.sampleRate)
-    }
-
-    private func synthesizeChatterbox(
-        text: String,
-        language: String,
-        controls: ChatterboxControls,
-        progress: @escaping ProgressHandler,
-        willSynthesize: @escaping @Sendable () -> Void
-    ) async throws -> SpeechAudio {
-        if !hasChatterboxPrepared {
-            try await chatterbox.initialize(progressHandler: progress)
-            hasChatterboxPrepared = true
-        }
-
-        willSynthesize()
-        let result = try await chatterbox.synthesize(
-            text: text,
-            language: language,
-            cfgWeight: controls.guidance,
-            temperature: controls.temperature,
-            seed: controls.seed)
-        return .samples(result.samples, sampleRate: result.sampleRate)
     }
 
     private func synthesizeChatterboxMLX(
@@ -681,9 +631,9 @@ private enum SpeechEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingChatterboxReference:
-            return String(localized: "Voice Cloning Advanced needs a recording to copy the voice.")
+            return String(localized: "Copying a voice needs a recording to copy it from.")
         case .unsupportedCloneLanguage(let language):
-            return String(localized: "Voice Cloning Advanced cannot speak \(language) yet.")
+            return String(localized: "A copied voice cannot speak \(language) yet.")
         }
     }
 }

@@ -15,7 +15,6 @@ struct TextToSpeechView: View {
     @State private var backend: SpeechBackend = .supertonic3
     @State private var language: SpeechSession.Language = .portuguese
     @State private var voice: SpeechSession.Voice = .m1
-    @State private var chatterbox = ChatterboxControls()
     @State private var mlxAudio = MLXAudioControls()
     @State private var referenceAudio: URL?
     @State private var isImportingReference = false
@@ -41,7 +40,7 @@ struct TextToSpeechView: View {
             } header: {
                 Text("What should the voice say?")
             } footer: {
-                Text("Write a sentence, script, or lyrics. For a more expressive lyrics reading, use Voice Cloning Advanced below.")
+                Text("Write a sentence, script, or lyrics. To read lyrics line by line, copy a voice below.")
             }
 
             Section {
@@ -51,14 +50,13 @@ struct TextToSpeechView: View {
                     }
                 }
                 .onChange(of: backend) { _, backend in
-                    if !backend.supports(language) { language = .portuguese }
                     if backend != .mlxAudio { isLyricsMode = false }
                     if backend == .mlxAudio { advancedTab = .voiceCloning }
                     app.speech.prepare(for: backend)
                 }
 
                 Picker("Language", selection: $language) {
-                    ForEach(SpeechSession.Language.allCases.filter(backend.supports)) { language in
+                    ForEach(SpeechSession.Language.allCases) { language in
                         Text(language.label).tag(language)
                     }
                 }
@@ -69,16 +67,12 @@ struct TextToSpeechView: View {
                             Text(voice.rawValue).tag(voice)
                         }
                     }
-                } else {
-                    LabeledContent("Voice", value: voiceSummary)
                 }
             } header: {
                 Text("Voice")
             } footer: {
                 Text(modelDescription)
             }
-
-            if backend == .chatterbox { standardChatterboxControls }
 
             if backend == .mlxAudio {
                 advancedWorkspace
@@ -131,39 +125,17 @@ struct TextToSpeechView: View {
     }
 
     @ViewBuilder
-    private var standardChatterboxControls: some View {
-        Section {
-            slider("Speech pace", value: $chatterbox.guidance, range: 0...1, step: 0.05)
-            slider("Variation between versions", value: $chatterbox.temperature, range: 0.2...1.4, step: 0.05)
-            HStack {
-                Text("New version")
-                Spacer()
-                Button("Change the reading") { chatterbox.seed = UInt64.random(in: 0..<UInt64.max) }
-            }
-        } header: {
-            Text("How it sounds")
-        } footer: {
-            Text("Use “Change the reading” to hear another interpretation of the same text. This Chatterbox version uses a built-in voice and cannot use a recording to copy a voice.")
-        }
-    }
-
-    @ViewBuilder
     private var advancedCloningControls: some View {
         Section {
             Label("Heavier on your Mac", systemImage: "cpu")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.orange)
-            Text("Voice Cloning Advanced uses MLX and more memory. The first setup and long texts can take time; use short passages and keep Shirusu open for more stable results.")
+            Text("Copying a voice uses more memory than a ready voice. The first setup and long texts can take time; use short passages and keep Shirusu open for more stable results.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
             slider("Expressiveness", value: $mlxAudio.exaggeration, range: 0...1, step: 0.05)
             slider("Pace", value: $mlxAudio.cfgWeight, range: 0...1, step: 0.05)
             slider("Variation", value: $mlxAudio.temperature, range: 0.05...1.5, step: 0.05)
-            DisclosureGroup("Advanced adjustments") {
-                slider("Avoid repetitions", value: $mlxAudio.repetitionPenalty, range: 1...2, step: 0.05)
-                slider("Filter unlikely choices", value: $mlxAudio.minP, range: 0...0.2, step: 0.01)
-                slider("Allow more variety", value: $mlxAudio.topP, range: 0.1...1, step: 0.05)
-            }
         } header: {
             Text("Voice delivery")
         } footer: {
@@ -268,19 +240,11 @@ struct TextToSpeechView: View {
 
     private var needsReference: Bool { backend == .mlxAudio }
 
-    private var voiceSummary: String {
-        switch backend {
-        case .chatterbox: String(localized: "Built-in voice")
-        case .mlxAudio: String(localized: "Reference voice")
-        case .supertonic3: voice.rawValue
-        }
-    }
-
     private func requestSpeech() {
         guard !app.speech.phase.isBusy else { return }
         app.speech.speak(
             text: text, backend: backend, language: language, voice: voice,
-            chatterbox: chatterbox, mlxAudio: mlxAudio,
+            mlxAudio: mlxAudio,
             referenceAudio: needsReference ? referenceAudio : nil,
             lyricLines: isLyricsMode ? lyricLines : []
         )
@@ -300,9 +264,8 @@ struct TextToSpeechView: View {
 
     private var modelDescription: String {
         switch backend {
-        case .supertonic3: String(localized: "Ten built-in voices and several languages. The selected voice downloads once and then works on this Mac.")
-        case .chatterbox: String(localized: "One expressive built-in voice. The first installation is large (about 2.3 GB) and works in Portuguese and the languages shown here.")
-        case .mlxAudio: String(localized: "The most complete Voice Cloning option, with more expression controls and settings for each line. It uses more memory than the other voices.")
+        case .supertonic3: String(localized: "Ten voices, ready to speak. The one you pick downloads once and then works on this Mac.")
+        case .mlxAudio: String(localized: "Copies the voice from a recording you choose. It adds controls for delivery and for reading lyrics line by line, and uses more memory.")
         }
     }
 
