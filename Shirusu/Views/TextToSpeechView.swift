@@ -54,6 +54,7 @@ struct TextToSpeechView: View {
                     if !backend.supports(language) { language = .portuguese }
                     if backend != .mlxAudio { isLyricsMode = false }
                     if backend == .mlxAudio { advancedTab = .voiceCloning }
+                    app.speech.prepare(for: backend)
                 }
 
                 Picker("Language", selection: $language) {
@@ -98,6 +99,7 @@ struct TextToSpeechView: View {
         .scrollContentBackground(.hidden)
         .background(Ink.canvas)
         .safeAreaInset(edge: .bottom, spacing: 0) { controls }
+        .onAppear { app.speech.prepare(for: backend) }
         .onDisappear { app.speech.stop() }
         .fileImporter(
             isPresented: $isImportingReference,

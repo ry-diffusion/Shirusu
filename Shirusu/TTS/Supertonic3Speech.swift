@@ -1,7 +1,9 @@
 import AVFoundation
+import AudioCommon
 import ChatterboxTTS
 import FluidAudio
 import Foundation
+import MLX
 import Observation
 
 /// A small, UI-facing wrapper around FluidAudio's local TTS pipelines.
@@ -79,6 +81,14 @@ final class SpeechSession {
     }
 
     var isPlaying: Bool { phase == .playing }
+
+    /// Load a backend's weights before anyone presses play, so the first press
+    /// is not spent reading a multi-gigabyte bundle off disk. Nothing is
+    /// fetched here: a backend whose weights have not been downloaded yet is
+    /// left alone, and keeps its honest download state on the first request.
+    func prepare(for backend: SpeechBackend) {
+        Task { [engine] in await engine.preload(backend) }
+    }
 
     func speak(
         text: String,
@@ -344,6 +354,28 @@ private actor SpeechEngine {
     private var hasChatterboxPrepared = false
     private var supertonicStyles: [Supertonic3Voice: Supertonic3VoiceStyle] = [:]
     private var chatterboxMLX: ChatterboxTTSModel?
+    private var chatterboxMLXLoad: Task<ChatterboxTTSModel, Error>?
+    private var clonedVoices: [ClonedVoice] = []
+
+    /// A cached voice is a few hundred KB, so keeping the last handful costs
+    /// little and makes switching back to an earlier take instant.
+    private static let clonedVoiceLimit = 3
+    private static let memoryOptions = ChatterboxMemoryOptions.balanced
+
+    /// Warm a backend without synthesizing anything. Only weights already in
+    /// the cache are loaded, so merely opening the tab never starts a download.
+    func preload(_ backend: SpeechBackend) async {
+        switch backend {
+        case .supertonic3, .chatterbox:
+            // FluidAudio drives its own download inside `initialize`, with no
+            // way to ask whether the assets are already there, so warming these
+            // could not tell a disk read from a fetch.
+            break
+        case .mlxAudio:
+            guard chatterboxMLX == nil, Self.hasDownloadedChatterboxMLX else { return }
+            _ = try? await loadChatterboxMLX(progress: { _ in })
+        }
+    }
 
     func synthesize(
         backend: SpeechBackend,
@@ -436,18 +468,13 @@ private actor SpeechEngine {
         progress: @escaping ProgressHandler,
         willSynthesize: @escaping @Sendable () -> Void
     ) async throws -> SpeechAudio {
-        let model: ChatterboxTTSModel
-        if let chatterboxMLX {
-            model = chatterboxMLX
-        } else {
-            model = try await ChatterboxTTSModel.fromPretrained { fraction, _ in
-                progress(DownloadProgress(
-                    fractionCompleted: fraction,
-                    phase: .downloading(completedFiles: 0, totalFiles: 0)
-                ))
-            }
-            chatterboxMLX = model
+        // `clone` folded case before checking, and the tokenizer's table is
+        // lowercase; matching it keeps the guard honest for any caller.
+        let language = language.lowercased()
+        guard MTLTokenizer.supportedLanguages.contains(language) else {
+            throw SpeechEngineError.unsupportedCloneLanguage(language)
         }
+        let model = try await loadChatterboxMLX(progress: progress)
 
         // `AudioDecoder` gives the model a mono Float32 reference at 16 kHz.
         // It supports every user-selectable file type and keeps its security
@@ -462,37 +489,201 @@ private actor SpeechEngine {
             requests = lines.map { ($0.text, controls.adjusted(for: $0)) }
         }
 
-        var samples: [Float] = []
-        for (index, request) in requests.enumerated() {
-            if Task.isCancelled { throw CancellationError() }
-            let line = try model.clone(
-                referenceSamples: reference.samples,
-                sampleRate: AudioFormats.sampleRate,
-                text: request.text,
-                languageId: language,
-                exaggeration: request.controls.exaggeration,
-                temperature: request.controls.temperature,
-                topP: request.controls.topP,
-                minP: request.controls.minP,
-                repetitionPenalty: request.controls.repetitionPenalty,
-                cfgWeight: request.controls.cfgWeight,
-                memoryOptions: .balanced)
-            samples += line
-            if index < requests.endIndex - 1 {
-                samples += Array(repeating: 0, count: 4_800)
+        let samples = try withGenerationMemoryCap { () throws -> [Float] in
+            // Conditioning depends on the recording, never on the text, so a
+            // lyric pays for it once rather than once per line.
+            let voice = conditioning(for: reference.samples, model: model)
+            var samples: [Float] = []
+            for (index, request) in requests.enumerated() {
+                if Task.isCancelled { throw CancellationError() }
+                samples += try speak(
+                    request.text, as: voice, language: language,
+                    controls: request.controls, model: model)
+                if index < requests.endIndex - 1 {
+                    samples += Array(repeating: 0, count: 4_800)
+                }
             }
+            return samples
         }
         return .samples(samples, sampleRate: 24_000)
     }
+
+    /// One shared load: `preload` and a play pressed straight afterwards would
+    /// otherwise both find an empty slot and read the bundle twice. Whichever
+    /// call starts the load owns the progress reporting — which only matters on
+    /// a cold cache, since `preload` bows out unless the files are already there.
+    private func loadChatterboxMLX(
+        progress: @escaping ProgressHandler
+    ) async throws -> ChatterboxTTSModel {
+        if let chatterboxMLX { return chatterboxMLX }
+        if let chatterboxMLXLoad { return try await chatterboxMLXLoad.value }
+
+        let load = Task {
+            try await ChatterboxTTSModel.fromPretrained { fraction, _ in
+                progress(DownloadProgress(
+                    fractionCompleted: fraction,
+                    phase: .downloading(completedFiles: 0, totalFiles: 0)
+                ))
+            }
+        }
+        chatterboxMLXLoad = load
+        defer { chatterboxMLXLoad = nil }
+        let model = try await load.value
+        chatterboxMLX = model
+        return model
+    }
+
+    /// Mirrors `prepare_conditionals` inside `ChatterboxTTSModel.clone`, which
+    /// rebuilds all of this on every call. The S3Gen prompt wants 24 kHz capped
+    /// at ten seconds, its tokenizer and CAMPPlus want that same slice at
+    /// 16 kHz, and the voice encoder wants the untruncated take.
+    private func conditioning(for samples: [Float], model: ChatterboxTTSModel) -> ClonedVoice {
+        let digest = Self.digest(of: samples)
+        if let index = clonedVoices.firstIndex(where: { $0.digest == digest }) {
+            let cached = clonedVoices.remove(at: index)
+            clonedVoices.insert(cached, at: 0)
+            return cached
+        }
+
+        let reference24k = Array(
+            AudioFileLoader.resample(
+                samples, from: AudioFormats.sampleRate, to: ChatterboxS3Gen.sampleRate,
+                quality: .mastering
+            ).prefix(ChatterboxTTSModel.decCondLen))
+        let reference16k = AudioFileLoader.resample(
+            reference24k, from: ChatterboxS3Gen.sampleRate, to: ChatterboxS3Gen.tokenSampleRate,
+            quality: .mastering)
+
+        let s3Reference = model.s3gen.embedRef(refWav24k: reference24k, refWav16k: reference16k)
+        let speakerEmbedding = model.voiceEncoder.embed(samples: samples)
+        let promptTokens = Array(
+            model.s3gen.tokenizer
+                .encode(Array(samples.prefix(ChatterboxTTSModel.encCondLen)))
+                .prefix(ChatterboxTTSModel.speechCondPromptLen))
+
+        // Resolve the graphs before storing them: a cached array still carrying
+        // its lazy graph would pin every intermediate it was built from.
+        eval(s3Reference.xVector, s3Reference.promptFeat, speakerEmbedding)
+
+        let voice = ClonedVoice(
+            digest: digest,
+            s3Reference: s3Reference,
+            speakerEmbedding: speakerEmbedding,
+            promptTokens: promptTokens)
+        clonedVoices.insert(voice, at: 0)
+        if clonedVoices.count > Self.clonedVoiceLimit { clonedVoices.removeLast() }
+        return voice
+    }
+
+    /// The text-dependent half of `clone`, split out so the conditioning above
+    /// can be reused across every line of a lyric.
+    private func speak(
+        _ text: String,
+        as voice: ClonedVoice,
+        language: String,
+        controls: MLXAudioControls,
+        model: ChatterboxTTSModel
+    ) throws -> [Float] {
+        let ids = try model.tokenizer.encodeStrict(text, languageId: language)
+        let textTokens =
+            [ChatterboxTTSModel.startTextToken] + ids + [ChatterboxTTSModel.stopTextToken]
+
+        let generated = model.t3.inference(
+            textTokens: textTokens,
+            speakerEmb: voice.speakerEmbedding,
+            promptSpeechTokens: voice.promptTokens,
+            emotionAdv: controls.exaggeration,
+            maxNewTokens: 1_000,
+            temperature: controls.temperature,
+            topP: controls.topP,
+            minP: controls.minP,
+            repetitionPenalty: controls.repetitionPenalty,
+            cfgWeight: controls.cfgWeight)
+
+        let speechTokens = Self.dropBoundaryTokens(generated)
+            .filter { $0 < ChatterboxTTSModel.speechVocabSize }
+        return model.s3gen.synthesize(
+            speechTokens: speechTokens, ref: voice.s3Reference,
+            memoryOptions: Self.memoryOptions)
+    }
+
+    /// `clone` ran a whole generation under a temporary MLX cache cap, and the
+    /// package keeps `ChatterboxMemory` internal, so the cap is reapplied here.
+    /// Without it the autoregressive T3 stage grows the buffer cache unchecked
+    /// across a multi-line lyric.
+    private func withGenerationMemoryCap<T>(_ body: () throws -> T) rethrows -> T {
+        guard let cap = Self.memoryOptions.cacheLimitBytes else { return try body() }
+        let previous = Memory.cacheLimit
+        Memory.cacheLimit = min(previous, max(0, cap))
+        Memory.clearCache()
+        defer {
+            Memory.cacheLimit = previous
+            if Self.memoryOptions.clearCacheOnCompletion { Memory.clearCache() }
+        }
+        return try body()
+    }
+
+    /// `drop_invalid_tokens`: keep what falls between the first SOS and the
+    /// first EOS. The package keeps its own copy internal.
+    private static func dropBoundaryTokens(_ tokens: [Int]) -> [Int] {
+        let sos = ChatterboxTTSModel.speechVocabSize
+        let eos = sos + 1
+        let start = tokens.firstIndex(of: sos).map { $0 + 1 } ?? 0
+        let end = tokens.firstIndex(of: eos) ?? tokens.count
+        guard start <= end else { return [] }
+        return Array(tokens[start ..< end])
+    }
+
+    /// SipHash over the decoded samples, seeded per process — all this needs,
+    /// since the cache never outlives the run.
+    private static func digest(of samples: [Float]) -> Int {
+        var hasher = Hasher()
+        hasher.combine(samples.count)
+        samples.withUnsafeBytes { hasher.combine(bytes: $0) }
+        return hasher.finalize()
+    }
+
+    /// The files `ChatterboxTTSModel.fromPretrained` insists on before it will
+    /// load from the cache, repeated here so preloading stays a disk read. If
+    /// any is missing the first real request downloads it, progress attached.
+    private static var hasDownloadedChatterboxMLX: Bool {
+        guard
+            let bundle = try? HuggingFaceDownloader.getCacheDirectory(
+                for: ChatterboxTTSModel.defaultModelId),
+            let tokenizer = try? HuggingFaceDownloader.getCacheDirectory(
+                for: ChatterboxTTSModel.s3TokenizerModelId,
+                cacheDirName: "chatterbox-s3-tokenizer")
+        else { return false }
+
+        let fileManager = FileManager.default
+        let required = ["model.safetensors", "config.json", "tokenizer.json", "Cangjie5_TC.json"]
+        return required.allSatisfy {
+            fileManager.fileExists(atPath: bundle.appendingPathComponent($0).path)
+        } && fileManager.fileExists(
+            atPath: tokenizer.appendingPathComponent("model.safetensors").path)
+    }
+}
+
+/// Everything `ChatterboxTTSModel.clone` derives from the reference recording
+/// before it ever looks at the text: three mastering-grade resamples, the
+/// speaker encoder, the S3 tokenizer and the voice encoder.
+nonisolated private struct ClonedVoice {
+    let digest: Int
+    let s3Reference: ChatterboxS3GenRef
+    let speakerEmbedding: MLXArray
+    let promptTokens: [Int]
 }
 
 private enum SpeechEngineError: LocalizedError {
     case missingChatterboxReference
+    case unsupportedCloneLanguage(String)
 
     var errorDescription: String? {
         switch self {
         case .missingChatterboxReference:
             return String(localized: "Voice Cloning Advanced needs a recording to copy the voice.")
+        case .unsupportedCloneLanguage(let language):
+            return String(localized: "Voice Cloning Advanced cannot speak \(language) yet.")
         }
     }
 }
