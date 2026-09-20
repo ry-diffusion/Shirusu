@@ -2440,6 +2440,46 @@
           }
         }
       }
+    },
+    "That one did not come through at all. Going again." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Essa não veio nada. Vamos de novo."
+          }
+        }
+      }
+    },
+    "Some of the line was missing. Going again." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Faltou parte da frase. Vamos de novo."
+          }
+        }
+      }
+    },
+    "Nothing reached the microphone" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nada chegou ao microfone"
+          }
+        }
+      }
+    },
+    "The recording is silent from end to end. Check that the right input is selected, and that a Bluetooth headset has finished switching to its microphone — that switch can take a few seconds and drops whatever is said during it." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A gravação está em silêncio do início ao fim. Confira se a entrada certa está selecionada, e se um fone Bluetooth já terminou de trocar para o microfone dele — essa troca leva alguns segundos e engole o que for dito nela."
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

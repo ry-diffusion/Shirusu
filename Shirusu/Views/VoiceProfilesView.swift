@@ -29,6 +29,15 @@ struct VoiceProfilesView: View {
     @State private var isImporting = false
     @State private var renaming: VoiceProfile.ID?
     @State private var problem: String?
+    @State private var attempt = 1
+    @State private var retryNote: LocalizedStringKey?
+    @State private var wasSilent = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// After this many goes it stops starting over and says what it found.
+    /// Looping forever on a microphone that is not working is not persistence.
+    private static let maxAttempts = 3
 
     var body: some View {
         VStack(spacing: 0) {
@@ -210,11 +219,22 @@ struct VoiceProfilesView: View {
     private var reading: some View {
         VStack(spacing: 18) {
             if let line = scriptLine {
-                Text(line)
-                    .font(Typeface.heading)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 420)
-                    .textSelection(.enabled)
+                FlowLayout(spacing: 6, lineSpacing: 10) {
+                    ForEach(EnrollmentCheck.tokens(line)) { token in
+                        Text(token.display)
+                            .foregroundStyle(hasLanded(token)
+                                ? AnyShapeStyle(Ink.settled)
+                                : AnyShapeStyle(HierarchicalShapeStyle.quaternary))
+                    }
+                }
+                .font(Typeface.heading)
+                .frame(maxWidth: 420)
+                // Each word brightens as the transcriber catches it, on the
+                // same spring the transcript uses when a word arrives there.
+                .animation(
+                    reduceMotion ? .easeOut(duration: 0.18) : Motion.arrive,
+                    value: recorder.readSoFar)
+
                 Button("Give me another line") { nextLine() }
                     .buttonStyle(.link)
                     .disabled(recorder.isRecording)
@@ -225,14 +245,6 @@ struct VoiceProfilesView: View {
                     .font(Typeface.heading)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 420)
-            }
-
-            if scriptLine != nil {
-                ProgressView(value: recorder.readSoFar)
-                    .progressViewStyle(.linear)
-                    .tint(Ink.accent)
-                    .frame(width: 240)
-                    .opacity(recorder.isRecording ? 1 : 0.25)
             }
 
             meter
@@ -256,6 +268,19 @@ struct VoiceProfilesView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 400)
+
+            if let retryNote {
+                Label(retryNote, systemImage: "arrow.counterclockwise")
+                    .font(Typeface.caption)
+                    .foregroundStyle(.orange)
+            }
+
+            if isChecking {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Listening back…").font(Typeface.caption).foregroundStyle(.secondary)
+                }
+            }
 
             if case .failed(let message) = recorder.phase {
                 Label(message, systemImage: "exclamationmark.triangle.fill")
@@ -300,11 +325,13 @@ struct VoiceProfilesView: View {
     @ViewBuilder
     private var review: some View {
         VStack(alignment: .leading, spacing: 14) {
-            if isChecking {
-                HStack(spacing: 9) {
-                    ProgressView().controlSize(.small)
-                    Text("Listening back…").font(Typeface.body)
-                }
+            if wasSilent {
+                Label("Nothing reached the microphone", systemImage: "mic.slash.fill")
+                    .font(Typeface.body.weight(.medium))
+                    .foregroundStyle(.orange)
+                Text("The recording is silent from end to end. Check that the right input is selected, and that a Bluetooth headset has finished switching to its microphone — that switch can take a few seconds and drops whatever is said during it.")
+                    .font(Typeface.caption)
+                    .foregroundStyle(.secondary)
             } else if let check {
                 Label(
                     check.isGood ? "The words came through" : "Some words did not come through",
@@ -360,11 +387,35 @@ struct VoiceProfilesView: View {
         return lines[lineIndex % lines.count]
     }
 
+    /// Whether the transcriber has caught this word yet. Outside a recording
+    /// the whole line reads at full strength: dimming a line nobody is reading
+    /// would just make it hard to read.
+    private func hasLanded(_ token: EnrollmentCheck.Token) -> Bool {
+        guard recorder.isRecording else { return true }
+        guard recorder.readSoFar.indices.contains(token.id) else { return false }
+        return recorder.readSoFar[token.id]
+    }
+
     private func beginReading() {
         recorder.clearFailure()
         take = nil
         check = nil
+        wasSilent = false
+        retryNote = nil
+        attempt = 1
         stage = .reading
+    }
+
+    /// Go again on the same line, without making someone press a button to be
+    /// told what they already heard.
+    private func startOver(_ note: LocalizedStringKey) async {
+        retryNote = note
+        take = nil
+        check = nil
+        await recorder.start(
+            device: app.inputs.resolve(app.inputDeviceUID),
+            script: scriptLine,
+            transcriber: app.transcriber)
     }
 
     private func nextLine() {
@@ -378,18 +429,47 @@ struct VoiceProfilesView: View {
     /// against the transcript it keeps.
     private func review() async {
         guard let finished = recorder.take else { return }
-        take = finished
-        name = defaultName
-        stage = .review
 
-        guard let script = scriptLine, let transcriber = app.transcriber else { return }
+        // Nothing ever reached the microphone. Going again will not change
+        // that, and telling someone to find a quieter room would be advice for
+        // a problem they do not have.
+        if finished.wasSilent {
+            wasSilent = true
+            land(finished, check: nil)
+            return
+        }
+
+        guard let script = scriptLine, let transcriber = app.transcriber else {
+            land(finished, check: nil)
+            return
+        }
+
         isChecking = true
-        defer { isChecking = false }
         let heard = (try? await transcriber.transcribe(finished.heardSamples)) ?? ""
-        check = VoiceProfile.Check(
+        isChecking = false
+
+        let verdict = VoiceProfile.Check(
             script: script,
             heard: heard,
             accuracy: EnrollmentCheck.accuracy(script: script, heard: heard))
+
+        if !verdict.isGood, attempt < Self.maxAttempts {
+            attempt += 1
+            await startOver(heard.isEmpty
+                ? "That one did not come through at all. Going again."
+                : "Some of the line was missing. Going again.")
+            return
+        }
+
+        land(finished, check: verdict)
+    }
+
+    private func land(_ finished: VoiceRecorder.Take, check: VoiceProfile.Check?) {
+        take = finished
+        self.check = check
+        name = defaultName
+        retryNote = nil
+        stage = .review
     }
 
     private func save() {

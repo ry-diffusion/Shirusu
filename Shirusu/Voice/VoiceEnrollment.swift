@@ -49,20 +49,32 @@ nonisolated enum EnrollmentScript {
     }
 }
 
-/// Keeps the take at the microphone's own rate.
+/// Keeps the take at the microphone's own rate, and nothing else.
 ///
-/// `UtteranceBuffer` converts to 16 kHz because that is the only rate the
-/// recogniser accepts, and a reference built from it can never carry anything
-/// above 8 kHz. This keeps the second copy the cloning model wants.
+/// There used to be a second buffer converting to 16 kHz as it went, and it
+/// could fail silently: a Bluetooth microphone renegotiating its format made
+/// every conversion throw, `try?` swallowed it, and the take reached the check
+/// with no audio in it while this buffer filled normally. One capture and one
+/// resampler cannot disagree like that.
 private actor NativeBuffer {
     private(set) var rate: Double = 0
+    /// The loudest thing heard. Silence and a misread line need different
+    /// advice, and only this tells them apart.
+    private(set) var peak: Float = 0
     private var samples: [Float] = []
 
-    /// Channel zero rather than a downmix: a microphone puts its signal there,
-    /// and summing an interface's unused second input would only add its noise.
-    func append(_ buffer: AVAudioPCMBuffer) {
+    func append(_ buffer: AVAudioPCMBuffer, peak chunkPeak: Float) {
+        // A format renegotiation hands out buffers with no rate and no frames.
+        // Taking the rate from one would leave the take unresampleable, so they
+        // are dropped — at 100 ms each, that is cheap.
+        guard
+            buffer.format.sampleRate > 0,
+            buffer.frameLength > 0,
+            let channel = buffer.floatChannelData?[0]
+        else { return }
+
         rate = buffer.format.sampleRate
-        guard let channel = buffer.floatChannelData?[0] else { return }
+        peak = max(peak, chunkPeak)
         samples.append(
             contentsOf: UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength)))
     }
@@ -70,11 +82,16 @@ private actor NativeBuffer {
     func reset() {
         samples = []
         rate = 0
+        peak = 0
     }
 
-    func take() -> (samples: [Float], rate: Double) {
+    var seconds: TimeInterval { rate > 0 ? Double(samples.count) / rate : 0 }
+
+    func snapshot() -> (samples: [Float], rate: Double) { (samples, rate) }
+
+    func take() -> (samples: [Float], rate: Double, peak: Float) {
         defer { samples = [] }
-        return (samples, rate)
+        return (samples, rate, peak)
     }
 }
 
@@ -100,8 +117,9 @@ final class VoiceRecorder {
 
     /// What the transcriber has caught so far. Empty until the first pass lands.
     var heard = ""
-    /// How much of the line has come back, 0...1. Zero when there is no line.
-    var readSoFar: Double = 0
+    /// Which of the line's tokens have come back, aligned to
+    /// `EnrollmentCheck.tokens`. Empty when there is no line to follow.
+    var readSoFar: [Bool] = []
 
     /// The finished take, however it finished.
     private(set) var take: Take?
@@ -114,7 +132,10 @@ final class VoiceRecorder {
     /// the model can finish one, so this is a floor rather than a promise.
     private static let listenInterval: Double = 0.6
 
-    @ObservationIgnored private let buffer = UtteranceBuffer()
+    /// Below this, nothing reached the microphone at all. A hum floor sits
+    /// around 0.002; ordinary speech peaks well above 0.05.
+    private static let silence: Float = 0.01
+
     @ObservationIgnored private let native = NativeBuffer()
     @ObservationIgnored private var feed: MicrophoneFeed?
     @ObservationIgnored private var pump: Task<Void, Never>?
@@ -133,23 +154,21 @@ final class VoiceRecorder {
             return
         }
 
-        await buffer.reset(limit: nil)
         await native.reset()
         duration = 0
         level = 0
         heard = ""
-        readSoFar = 0
+        readSoFar = []
         take = nil
         phase = .recording
 
         let feed = MicrophoneFeed(device: device)
         self.feed = feed
-        pump = Task { [weak self, buffer, native] in
+        pump = Task { [weak self, native] in
             do {
                 for try await chunk in feed.chunks() {
-                    await buffer.append(chunk.buffer)
-                    await native.append(chunk.buffer)
-                    let seconds = await buffer.duration
+                    await native.append(chunk.buffer, peak: chunk.peak)
+                    let seconds = await native.seconds
                     await MainActor.run {
                         guard let self, self.phase == .recording else { return }
                         self.level = chunk.peak
@@ -175,24 +194,25 @@ final class VoiceRecorder {
     }
 
     private func listen(to script: String?, with transcriber: BatchTranscriber) {
-        listener = Task { [weak self, buffer] in
+        listener = Task { [weak self, native] in
             while !Task.isCancelled {
                 let started = ContinuousClock.now
-                let samples = await buffer.snapshot()
+                let (raw, rate) = await native.snapshot()
+                let samples = Self.atRecogniserRate(raw, from: rate)
 
                 if samples.count >= BatchTranscriber.minimumSamples {
                     let text = (try? await transcriber.transcribe(samples)) ?? ""
-                    let matched = script.map {
-                        EnrollmentCheck.accuracy(script: $0, heard: text)
-                    } ?? 0
+                    let progress = script.map {
+                        EnrollmentCheck.progress(script: $0, heard: text)
+                    }
 
                     await MainActor.run {
                         guard let self, self.phase == .recording else { return }
                         self.heard = text
-                        self.readSoFar = matched
+                        self.readSoFar = progress?.matched ?? []
                         // The line is done. Waiting for a button press now only
                         // records the silence after it.
-                        if script != nil, matched >= VoiceProfile.Check.passMark {
+                        if let progress, progress.accuracy >= VoiceProfile.Check.passMark {
                             Task { await self.finish() }
                         }
                     }
@@ -218,9 +238,11 @@ final class VoiceRecorder {
         level = 0
         phase = .idle
 
-        let heardSamples = await buffer.take()
-        let (raw, rate) = await native.take()
-        guard !raw.isEmpty, rate > 0 else { return nil }
+        let (raw, rate, peak) = await native.take()
+        guard !raw.isEmpty, rate > 0 else {
+            phase = .failed(MicrophoneError.noInputDevice.localizedDescription)
+            return nil
+        }
 
         let reference = Int(rate) == AudioFormats.referenceSampleRate
             ? raw
@@ -240,8 +262,9 @@ final class VoiceRecorder {
 
         let finished = Take(
             url: url,
-            heardSamples: heardSamples,
-            duration: Double(reference.count) / Double(AudioFormats.referenceSampleRate))
+            heardSamples: Self.atRecogniserRate(raw, from: rate),
+            duration: Double(reference.count) / Double(AudioFormats.referenceSampleRate),
+            wasSilent: peak < Self.silence)
         take = finished
         return finished
     }
@@ -255,7 +278,7 @@ final class VoiceRecorder {
         level = 0
         duration = 0
         heard = ""
-        readSoFar = 0
+        readSoFar = []
         take = nil
         if case .failed = phase { return }
         phase = .idle
@@ -265,12 +288,24 @@ final class VoiceRecorder {
         if case .failed = phase { phase = .idle }
     }
 
+    /// Speech is band-limited and this is a downsample, which is exactly where
+    /// `.standard` is meant to be used and mastering-grade filtering is wasted.
+    private static func atRecogniserRate(_ samples: [Float], from rate: Double) -> [Float] {
+        guard rate > 0 else { return [] }
+        guard Int(rate) != AudioFormats.sampleRate else { return samples }
+        return AudioFileLoader.resample(
+            samples, from: Int(rate), to: AudioFormats.sampleRate, quality: .standard)
+    }
+
     nonisolated struct Take: Sendable {
         /// 24 kHz on disk, which is what the cloning model conditions on.
         let url: URL
         /// The same take at 16 kHz, for the transcriber.
         let heardSamples: [Float]
         let duration: TimeInterval
+        /// Nothing ever reached the microphone. A different problem from a line
+        /// read badly, and it needs different advice.
+        let wasSilent: Bool
     }
 }
 
@@ -281,34 +316,94 @@ final class VoiceRecorder {
 /// take and say whether it caught the words — which is the difference between
 /// "the level meter moved" and "this is usable".
 nonisolated enum EnrollmentCheck {
-    /// Longest common subsequence over normalised words, as a fraction of the
-    /// script. Order matters, so a transcript that catches every word in the
-    /// wrong places does not pass.
-    static func accuracy(script: String, heard: String) -> Double {
-        let wanted = words(script)
-        let got = words(heard)
-        guard !wanted.isEmpty else { return 0 }
+    /// A word of the line as it is shown, beside the form used to match it.
+    /// Splitting once keeps what is drawn and what is compared in step.
+    nonisolated struct Token: Sendable, Equatable, Identifiable {
+        let id: Int
+        let display: String
+        let folded: String
 
-        var previous = [Int](repeating: 0, count: got.count + 1)
-        var current = previous
-        for i in 1...wanted.count {
-            for j in 1...max(got.count, 1) where !got.isEmpty {
-                current[j] = wanted[i - 1] == got[j - 1]
-                    ? previous[j - 1] + 1
-                    : max(previous[j], current[j - 1])
+        /// A lone dash is drawn but never matched, and never counted against
+        /// anyone either.
+        var isWord: Bool { !folded.isEmpty }
+    }
+
+    nonisolated struct Progress: Sendable, Equatable {
+        let tokens: [Token]
+        /// Aligned to `tokens`. Punctuation is always true: there is nothing
+        /// there to hear.
+        let matched: [Bool]
+        let accuracy: Double
+    }
+
+    static func tokens(_ script: String) -> [Token] {
+        script
+            .split(whereSeparator: \.isWhitespace)
+            .enumerated()
+            .map { Token(id: $0.offset, display: String($0.element), folded: folded($0.element)) }
+    }
+
+    /// Longest common subsequence over folded words, traced back so the screen
+    /// can say which ones have landed. Order matters, so a transcript that
+    /// catches every word in the wrong places does not pass.
+    static func progress(script: String, heard: String) -> Progress {
+        let tokens = tokens(script)
+        let wanted = tokens.map(\.folded)
+        let got = heard
+            .split(whereSeparator: \.isWhitespace)
+            .map { folded($0) }
+            .filter { !$0.isEmpty }
+
+        var matched = tokens.map { !$0.isWord }
+        let words = tokens.indices.filter { tokens[$0].isWord }
+        guard !words.isEmpty else { return Progress(tokens: tokens, matched: matched, accuracy: 0) }
+        guard !got.isEmpty else { return Progress(tokens: tokens, matched: matched, accuracy: 0) }
+
+        // The table is over the real words only, so punctuation cannot shift
+        // the alignment underneath the backtrace.
+        let script = words.map { wanted[$0] }
+        var table = [[Int]](
+            repeating: [Int](repeating: 0, count: got.count + 1), count: script.count + 1)
+        for i in 1...script.count {
+            for j in 1...got.count {
+                table[i][j] = script[i - 1] == got[j - 1]
+                    ? table[i - 1][j - 1] + 1
+                    : max(table[i - 1][j], table[i][j - 1])
             }
-            swap(&previous, &current)
-            current = [Int](repeating: 0, count: got.count + 1)
         }
-        return Double(previous[got.count]) / Double(wanted.count)
+
+        var hits = 0
+        var i = script.count
+        var j = got.count
+        while i > 0, j > 0 {
+            if script[i - 1] == got[j - 1] {
+                matched[words[i - 1]] = true
+                hits += 1
+                i -= 1
+                j -= 1
+            } else if table[i - 1][j] >= table[i][j - 1] {
+                i -= 1
+            } else {
+                j -= 1
+            }
+        }
+
+        return Progress(
+            tokens: tokens,
+            matched: matched,
+            accuracy: Double(hits) / Double(script.count))
+    }
+
+    static func accuracy(script: String, heard: String) -> Double {
+        progress(script: script, heard: heard).accuracy
     }
 
     /// Case, accents and punctuation are the transcriber's business, not the
     /// speaker's: someone who read the line correctly should not fail because
     /// the model wrote "voce" or left the comma out.
-    private static func words(_ text: String) -> [String] {
+    private static func folded(_ text: some StringProtocol) -> String {
         text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
+            .joined()
     }
 }
