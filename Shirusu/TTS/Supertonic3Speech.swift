@@ -482,16 +482,29 @@ private actor SpeechEngine {
     /// and it is worth calling.
     private func releaseModels(except wanted: HeavyModel?) {
         var freed = false
-        if wanted != .chatterbox, chatterboxMLX != nil {
-            chatterboxMLX = nil
-            // These hold MLXArrays built by the model that is going away.
-            clonedVoices.removeAll()
-            freed = true
+        if wanted != .chatterbox {
+            // A load in flight has to go too. It was only ever the resident
+            // model that was let go of here, so switching modes while three
+            // gigabytes were still coming down let that download finish and
+            // install itself beside the model being kept — both resident,
+            // which is the one thing this exists to prevent.
+            chatterboxMLXLoad?.cancel()
+            chatterboxMLXLoad = nil
+            if chatterboxMLX != nil {
+                chatterboxMLX = nil
+                // These hold MLXArrays built by the model that is going away.
+                clonedVoices.removeAll()
+                freed = true
+            }
         }
-        if wanted != .voxcpm, let voxcpm {
-            voxcpm.unload()
-            self.voxcpm = nil
-            freed = true
+        if wanted != .voxcpm {
+            voxcpmLoad?.cancel()
+            voxcpmLoad = nil
+            if let voxcpm {
+                voxcpm.unload()
+                self.voxcpm = nil
+                freed = true
+            }
         }
         if freed { Memory.clearCache() }
     }
@@ -588,6 +601,12 @@ private actor SpeechEngine {
         // 8 kHz in it, which put a ceiling on every copied voice.
         let reference = try await AudioDecoder.decode(
             referenceAudio, sampleRate: AudioFormats.referenceSampleRate)
+
+        // Generation itself is one synchronous MLX call that cannot be
+        // interrupted, so this is the last moment Cancel can mean anything.
+        // Without it, pressing Cancel while the weights were still loading ran
+        // the whole take anyway, and the next request queued up behind it.
+        try Task.checkCancellation()
         willSynthesize()
         let lines = lyricLines.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         let requests: [(text: String, controls: MLXAudioControls)]
@@ -644,6 +663,9 @@ private actor SpeechEngine {
                 .samples
         }
 
+        // The last moment Cancel can mean anything: see the note in the
+        // Chatterbox path.
+        try Task.checkCancellation()
         willSynthesize()
         let samples = try await withGenerationMemoryCap {
             try await model.generateVoxCPM2(
@@ -679,8 +701,18 @@ private actor SpeechEngine {
             throw lastFailure ?? SpeechEngineError.missingVoiceDescription
         }
         voxcpmLoad = load
-        defer { voxcpmLoad = nil }
+        defer { if voxcpmLoad == load { voxcpmLoad = nil } }
         let model = try await load.value
+
+        // `releaseModels` clears the slot when it gives up on a load, so a slot
+        // that no longer holds this task is how a mode change that happened
+        // while it was downloading says so. Keeping the model then would be
+        // carrying three gigabytes nothing is going to ask for.
+        guard voxcpmLoad == load else {
+            model.unload()
+            Memory.clearCache()
+            throw CancellationError()
+        }
         voxcpm = model
         Self.log.notice(
             "VoxCPM2 weights resident: \(model.memoryFootprint / 1_048_576, privacy: .public) MB")
@@ -708,8 +740,16 @@ private actor SpeechEngine {
             }
         }
         chatterboxMLXLoad = load
-        defer { chatterboxMLXLoad = nil }
+        defer { if chatterboxMLXLoad == load { chatterboxMLXLoad = nil } }
         let model = try await load.value
+
+        // As above: an empty slot means the mode changed while this was
+        // loading, and nothing wants it now. Chatterbox has no `unload`, so
+        // dropping the reference and clearing the cache is all there is.
+        guard chatterboxMLXLoad == load else {
+            Memory.clearCache()
+            throw CancellationError()
+        }
         chatterboxMLX = model
         return model
     }
