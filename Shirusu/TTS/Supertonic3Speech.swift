@@ -464,14 +464,15 @@ private actor SpeechEngine {
                 text: text, language: language, voice: voice,
                 progress: progress, willSynthesize: willSynthesize)
         case .voiceDesign:
-            return try await synthesizeVoiceDesign(
-                text: text, language: language, description: voiceDescription,
-                progress: progress, willSynthesize: willSynthesize)
+            return try await synthesizeVoxCPM2(
+                text: text, language: language, referenceAudio: nil,
+                direction: voiceDescription, progress: progress,
+                willSynthesize: willSynthesize)
         case .mlxAudio where cloning == .detailed:
             guard let referenceAudio else {
                 throw SpeechEngineError.missingChatterboxReference
             }
-            return try await synthesizeVoxCloning(
+            return try await synthesizeVoxCPM2(
                 text: text, language: language, referenceAudio: referenceAudio,
                 direction: voiceDescription, progress: progress,
                 willSynthesize: willSynthesize)
@@ -565,31 +566,17 @@ private actor SpeechEngine {
         return .samples(samples, sampleRate: 24_000)
     }
 
-    /// A voice from a description of it, with no recording anywhere.
+    /// Everything VoxCPM2 does, which is one call with two optional halves.
     ///
-    /// VoxCPM2 takes the description as an instruction rather than as something
-    /// to read, which is why this is its own mode and not a field on the other
-    /// one: there is no reference here to condition on at all.
-    private func synthesizeVoiceDesign(
+    /// `instruct` is prefixed to the text before the model branches on whether
+    /// a reference is present, so the two are orthogonal: a description alone
+    /// designs a voice, a recording alone copies one, and both together copy a
+    /// voice and direct how it reads. The app shows those as different things
+    /// to ask for, because they are — but there is only ever one call.
+    private func synthesizeVoxCPM2(
         text: String,
         language: String,
-        description: String,
-        progress: @escaping ProgressHandler,
-        willSynthesize: @escaping @Sendable () -> Void
-    ) async throws -> SpeechAudio {
-        let model = try await loadVoxCPM(progress: progress)
-        willSynthesize()
-        let samples = try await model.generateVoxCPM2(
-            text: text, language: language, instruct: description)
-        return .samples(samples, sampleRate: model.sampleRate)
-    }
-
-    /// A copied voice through VoxCPM2: 48 kHz out, and a note on delivery
-    /// alongside the recording, which Chatterbox has nowhere to put.
-    private func synthesizeVoxCloning(
-        text: String,
-        language: String,
-        referenceAudio: URL,
+        referenceAudio: URL?,
         direction: String,
         progress: @escaping ProgressHandler,
         willSynthesize: @escaping @Sendable () -> Void
@@ -597,16 +584,20 @@ private actor SpeechEngine {
         let model = try await loadVoxCPM(progress: progress)
 
         // The VAE asserts its own rate rather than resampling to it, and a
-        // `precondition` traps in release as well — so the reference is decoded
+        // `precondition` traps in release as well — so a reference is decoded
         // at whatever rate this checkpoint was built for rather than at ours.
-        let reference = try await AudioDecoder.decode(
-            referenceAudio, sampleRate: model.audio_vae.sampleRate)
+        var reference: [Float]?
+        if let referenceAudio {
+            reference = try await AudioDecoder
+                .decode(referenceAudio, sampleRate: model.audio_vae.sampleRate)
+                .samples
+        }
 
         willSynthesize()
         let samples = try await model.generateVoxCPM2(
             text: text,
             language: language,
-            refAudio: reference.samples,
+            refAudio: reference,
             instruct: direction.isEmpty ? nil : direction)
         return .samples(samples, sampleRate: model.sampleRate)
     }
