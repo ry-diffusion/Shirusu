@@ -297,6 +297,26 @@ final class AppModel {
     let captions = CaptionPanel()
     private let log = Logger(subsystem: "br.com.zesmoi.Shirusu", category: "app")
 
+    /// Hands every model back the moment the system says it is short, rather
+    /// than waiting out a deadline that may be half an hour away.
+    ///
+    /// Held for the life of the app: the source stops listening when this is
+    /// released, and there is no point at which the app stops caring.
+    @ObservationIgnored private lazy var memoryPressure = MemoryPressureWatch { [weak self] in
+        Task { @MainActor in await self?.releaseModels() }
+    }
+
+    /// Everything loadable, let go of at once.
+    ///
+    /// Both sides reload on their next use, so this costs latency rather than
+    /// function — which is the right way round when the alternative is the
+    /// system swapping or killing something.
+    func releaseModels() async {
+        log.info("Releasing models under memory pressure")
+        await speech.releaseModels()
+        await transcriber?.unload()
+    }
+
     func bootstrap() async {
         guard stage != .ready else { return }
 
@@ -308,18 +328,30 @@ final class AppModel {
         do {
             // AppModel lives as long as the process, so a strong capture here is
             // the honest one; a weak dance would only obscure that.
-            let models = try await ModelSetup.prepare { step, fraction in
-                Task { @MainActor in
-                    self.setupStep = step
-                    // Progress that only ever moves forward. A bar that retreats
-                    // reads as a bug even when the underlying number is honest.
-                    self.setupFraction = max(self.setupFraction, fraction)
+            //
+            // The transcriber is handed a way to get the weights rather than
+            // the weights themselves, which is what lets it give them back
+            // when nobody has dictated for a while: an `AsrModels` kept up
+            // here would hold the four CoreML models alive no matter what the
+            // engine released. Re-entering this costs a disk read and a
+            // CoreML load, not a download — `AsrModels.download` returns
+            // straight away once the files are installed.
+            let engine = BatchTranscriber {
+                try await ModelSetup.prepare { step, fraction in
+                    Task { @MainActor in
+                        self.setupStep = step
+                        // Progress that only ever moves forward. A bar that retreats
+                        // reads as a bug even when the underlying number is honest.
+                        self.setupFraction = max(self.setupFraction, fraction)
+                    }
                 }
             }
+            // Loaded here rather than on the first press, because this is the
+            // load the setup screen is showing a bar for.
+            try await engine.load()
             // One engine behind both, so the weights load once.
-            let engine = BatchTranscriber()
             transcriber = engine
-            let live = TranscriptionSession(models: models, engine: engine)
+            let live = TranscriptionSession(engine: engine)
             live.setContinuousUpdateInterval(captionUpdateRate.interval)
             // Only an utterance run finishes, and only dictation makes one:
             // captions run continuously and never take a release pass.
@@ -335,7 +367,10 @@ final class AppModel {
                 self.captions.hide(after: 0.6)
             }
             self.liveSession = live
-            self.fileSession = TranscriptionSession(models: models, engine: engine)
+            self.fileSession = TranscriptionSession(engine: engine)
+            // Touched, not just declared: a `lazy var` nobody reads is never
+            // built, and this one exists entirely for its side effect.
+            _ = memoryPressure
             stage = .ready
             // Warm the release pass in the background: the window is already
             // usable, and the first press should not pay for it.

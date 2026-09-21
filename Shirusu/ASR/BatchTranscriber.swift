@@ -72,7 +72,18 @@ actor UtteranceBuffer {
 /// losing decoder-level biasing, so the term corrections moved into
 /// `Vocabulary` as plain text replacement instead.
 actor BatchTranscriber {
+    private static let log = Logger(subsystem: "br.com.zesmoi.Shirusu", category: "models")
+
     private let manager = AsrManager(config: .default)
+
+    /// Where the weights come from, asked again after an idle unload.
+    ///
+    /// A provider rather than an `AsrModels` handed in once, because that
+    /// value *is* the four CoreML models. Anyone keeping one around to reload
+    /// from would keep the weights resident and `cleanup()` would free
+    /// nothing, which is why nobody outside this actor holds them any more.
+    private let acquire: @Sendable () async throws -> AsrModels
+
     private var isLoaded = false
 
     /// The load in flight, so that everyone wanting the model waits on one
@@ -86,16 +97,88 @@ actor BatchTranscriber {
     /// in the air at once.
     private var loading: Task<Void, Error>?
 
+    /// Who is decoding right now, and when the last of them stopped.
+    private var use = ModelUse()
+    /// Wakes once the deadline is due and asks whether it still holds.
+    private var sweep: Task<Void, Never>?
+
+    init(acquire: @escaping @Sendable () async throws -> AsrModels) {
+        self.acquire = acquire
+    }
+
+    /// For tests and one-off passes, where the weights are already in hand and
+    /// nothing is trying to give them back.
+    init(models: AsrModels) {
+        self.init { models }
+    }
+
     /// Idempotent, and safe to call from anywhere at any time.
-    func load(_ models: AsrModels) async throws {
+    func load() async throws {
         if isLoaded { return }
         if let loading { return try await loading.value }
 
-        let task = Task { try await manager.loadModels(models) }
+        let task = Task { [acquire, manager] in
+            let models = try await acquire()
+            try await manager.loadModels(models)
+        }
         loading = task
         defer { loading = nil }
         try await task.value
         isLoaded = true
+        // Loaded and not yet used has to start the clock as well. The launch
+        // warm-up loads without transcribing anything, and a session where
+        // nobody then presses the key is exactly the one that should not be
+        // holding most of a gigabyte an hour later.
+        use.idle()
+        restartSweep()
+    }
+
+    /// Give the weights back. The next `transcribe` fetches them again.
+    ///
+    /// `AsrManager.cleanup()` is the whole of it only because the provider
+    /// replaced the stored `AsrModels`: with a copy still held somewhere this
+    /// would release the manager's references and free nothing.
+    func unload() async {
+        // Not out from under a run in progress. This is reachable from memory
+        // pressure as well as from the deadline, and a warning from the system
+        // is not worth the dictation someone is in the middle of — the sweeper
+        // collects it seconds later, once the words have landed.
+        guard !use.isActive else {
+            restartSweep()
+            return
+        }
+        sweep?.cancel()
+        sweep = nil
+        loading?.cancel()
+        loading = nil
+        guard isLoaded else { return }
+        isLoaded = false
+        // A reload builds fresh `MLModel`s, and CoreML specialises the graph
+        // for the Neural Engine per instance, so the warm-up launch paid for
+        // does not survive this.
+        isWarm = false
+        use.forget()
+        await manager.cleanup()
+        Self.log.info("Transcription weights released")
+    }
+
+    private func restartSweep() {
+        sweep?.cancel()
+        sweep = Task {
+            try? await Task.sleep(for: ModelIdle.transcription)
+            guard !Task.isCancelled else { return }
+            await self.unloadIfIdle()
+        }
+    }
+
+    private func unloadIfIdle() async {
+        guard use.hasExpired(after: ModelIdle.transcription) else {
+            // Picked up again while the sweeper slept, or still decoding now.
+            // Either way the deadline moved; come back for the new one.
+            restartSweep()
+            return
+        }
+        await unload()
     }
 
     /// Shorter than this and the decoder rejects the buffer outright.
@@ -124,6 +207,15 @@ actor BatchTranscriber {
 
     func transcribe(_ samples: [Float]) async throws -> String {
         guard samples.count >= Self.minimumSamples else { return "" }
+        // The weights may have been let go of since the last press, and none
+        // of the callers is in a position to know that. Loading here is what
+        // makes the deadline invisible to everything above.
+        try await load()
+        use.begin()
+        defer {
+            use.end()
+            restartSweep()
+        }
         var state = TdtDecoderState.make(decoderLayers: await manager.decoderLayerCount)
         let result = try await manager.transcribe(
             samples, decoderState: &state, language: ShirusuModel.language

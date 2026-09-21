@@ -216,6 +216,14 @@ final class SpeechSession {
         if case .failed = phase { phase = .idle }
     }
 
+    /// Hand every voice back at once, for when the system is short of memory.
+    ///
+    /// The idle deadlines cover the ordinary case on their own; this is the
+    /// one they cannot see coming.
+    func releaseModels() async {
+        await engine.releaseEverything()
+    }
+
     private func finishedPlaying() {
         guard phase == .playing else { return }
         phase = .idle
@@ -423,6 +431,19 @@ private actor SpeechEngine {
     private var voxcpm: VoxCPM2TTSModel?
     private var voxcpmLoad: Task<Loaded<VoxCPM2TTSModel>, Error>?
 
+    /// Who is synthesising right now, and when the last of them stopped. Kept
+    /// apart because the two deadlines are: gigabytes should go quickly, and
+    /// the default voice is worth holding on to.
+    private var heavyUse = ModelUse()
+    private var supertonicUse = ModelUse()
+
+    /// One sweeper for both, waking at the shorter of the two deadlines.
+    ///
+    /// A timer each would be exact; this is a handful of comparisons every two
+    /// minutes and one piece of state instead of two, which is the better
+    /// trade for something that only ever decides whether to free memory.
+    private var sweep: Task<Void, Never>?
+
     /// The repos to try, in order. The first is what was asked for; the second
     /// is what `speech-swift` is written and tested against, so it is the one
     /// that decides whether the feature works at all.
@@ -454,6 +475,10 @@ private actor SpeechEngine {
         case .chatterbox:
             guard chatterboxMLX == nil, Self.hasDownloadedChatterboxMLX else { return }
             _ = try? await loadChatterboxMLX(progress: { _ in })
+            // Warmed but unused, which still starts the clock: opening the tab
+            // and walking away should not cost 1.7 GB for the rest of the day.
+            heavyUse.idle()
+            restartSweep()
         case .voxcpm:
             // No cheap way to ask whether these weights are already here: the
             // repo that answers depends on which one loaded last time. Warming
@@ -520,6 +545,64 @@ private actor SpeechEngine {
         if freed { Memory.clearCache() }
     }
 
+    /// Supertonic's four CoreML stages.
+    ///
+    /// The cached voice styles stay. They are preset data rather than anything
+    /// the model owns, a few hundred KB between them, and dropping them would
+    /// only add a disk read to the next press for no memory worth the name.
+    private func releaseSupertonic() async {
+        guard hasSupertonicPrepared else { return }
+        hasSupertonicPrepared = false
+        supertonicUse.forget()
+        await supertonic.cleanup()
+        Self.log.info("Supertonic released")
+    }
+
+    /// Everything, now, whatever the deadlines say. The system is asking for
+    /// the memory back and will not wait ten minutes for it.
+    func releaseEverything() async {
+        // A synthesis in flight keeps its model. Cancelling one to answer a
+        // memory warning throws away a run that can take minutes, and the
+        // sweeper takes it the moment the run ends anyway.
+        sweep?.cancel()
+        sweep = nil
+        if !heavyUse.isActive {
+            releaseModels(except: nil)
+            heavyUse.forget()
+        }
+        if !supertonicUse.isActive {
+            await releaseSupertonic()
+        }
+        if heavyUse.isActive || supertonicUse.isActive { restartSweep() }
+    }
+
+    private func restartSweep() {
+        sweep?.cancel()
+        sweep = Task {
+            try? await Task.sleep(for: ModelIdle.voice)
+            guard !Task.isCancelled else { return }
+            await self.sweepIdle()
+        }
+    }
+
+    private func sweepIdle() async {
+        if heavyUse.hasExpired(after: ModelIdle.voice) {
+            releaseModels(except: nil)
+            heavyUse.forget()
+            Self.log.info("Heavy voice released")
+        }
+        if supertonicUse.hasExpired(after: ModelIdle.supertonic) {
+            await releaseSupertonic()
+        }
+        // Stop waking once there is nothing left to let go of. The next load
+        // starts the sweeper again.
+        if chatterboxMLX != nil || voxcpm != nil || hasSupertonicPrepared {
+            restartSweep()
+        } else {
+            sweep = nil
+        }
+    }
+
     func synthesize(
         backend: SpeechBackend,
         text: String,
@@ -533,6 +616,16 @@ private actor SpeechEngine {
         progress: @escaping ProgressHandler,
         willSynthesize: @escaping @Sendable () -> Void
     ) async throws -> SpeechAudio {
+        // Which clock this run holds back. Nothing expires underneath a
+        // synthesis, and a run longer than its own deadline restarts it on the
+        // way out rather than expiring the instant it finishes.
+        let isHeavy = Self.heavyModel(for: backend, cloning: cloning) != nil
+        if isHeavy { heavyUse.begin() } else { supertonicUse.begin() }
+        defer {
+            if isHeavy { heavyUse.end() } else { supertonicUse.end() }
+            restartSweep()
+        }
+
         switch backend {
         case .supertonic3:
             return try await synthesizeSupertonic(

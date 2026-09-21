@@ -56,8 +56,8 @@ struct ReleasePassTests {
     func endToEnd() async throws {
         let bundle = Bundle(for: BundleToken.self)
         let models = try await ModelSetup.prepare { _, _ in }
-        let batch = BatchTranscriber()
-        try await batch.load(models)
+        let batch = BatchTranscriber(models: models)
+        try await batch.load()
 
         let url = try #require(bundle.url(forResource: "speech-short", withExtension: "m4a"))
         let decoded = try await AudioDecoder.decode(url)

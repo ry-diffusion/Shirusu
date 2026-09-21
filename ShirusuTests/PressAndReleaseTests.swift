@@ -69,7 +69,7 @@ struct PressAndReleaseTests {
     func releaseLatency() async throws {
         let bundle = Bundle(for: BundleToken.self)
         let models = try await ModelSetup.prepare { _, _ in }
-        let session = TranscriptionSession(models: models, profile: .pushToTalk)
+        let session = TranscriptionSession(engine: BatchTranscriber(models: models), profile: .pushToTalk)
         await session.prepare()
 
         for name in ["speech-tiny", "speech-short"] {

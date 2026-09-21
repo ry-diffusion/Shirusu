@@ -82,7 +82,6 @@ final class TranscriptionSession {
     /// dead until the app was relaunched.
     var onFinish: ((String) -> Void)?
 
-    private let models: AsrModels
     private let capture = UtteranceBuffer()
     /// Shared, not owned. The CoreML weights are most of a gigabyte, so the
     /// file screen and the live screens get their own transcript and their own
@@ -107,11 +106,9 @@ final class TranscriptionSession {
     private let log = Logger(subsystem: "br.com.zesmoi.Shirusu", category: "session")
 
     init(
-        models: AsrModels,
-        engine: BatchTranscriber = BatchTranscriber(),
+        engine: BatchTranscriber,
         profile: ShirusuModel.Profile = .pushToTalk
     ) {
-        self.models = models
         self.engine = engine
         // Vestigial: the sliding-window path it selected is gone, and the
         // tests still pass one. Accepted and ignored rather than churn them.
@@ -132,7 +129,7 @@ final class TranscriptionSession {
     /// be asked.
     func prepare() async {
         let started = ContinuousClock.now
-        try? await engine.load(models)
+        try? await engine.load()
         await engine.warmUp()
         log.info("Recogniser warm in \(started.duration(to: .now), privacy: .public)")
     }
@@ -194,7 +191,7 @@ final class TranscriptionSession {
                     // Whatever is left of the load is paid for here, where
                     // there is already something to decode, rather than in
                     // front of the first word.
-                    try await self.engine.load(self.models)
+                    try await self.engine.load()
                     let final = try await self.engine.transcribe(self.capture.take())
                     if !final.isEmpty {
                         self.transcript.apply(confirmed: final, volatile: "")
@@ -230,7 +227,7 @@ final class TranscriptionSession {
             // lives inside the preview loop rather than in front of the
             // microphone. The buffer is filling while this happens, and a
             // cancelled run stops waiting with it.
-            if let self { try? await self.engine.load(self.models) }
+            if let self { try? await self.engine.load() }
 
             while !Task.isCancelled {
                 guard let self else { return }

@@ -58,8 +58,8 @@ struct RealAudioComparison {
         }
 
         // Parakeet with it — what ships.
-        let batch = BatchTranscriber()
-        try await batch.load(models)
+        let batch = BatchTranscriber(models: models)
+        try await batch.load()
         _ = try await batch.transcribe(decoded[0].audio.samples)  // warm
         for (name, audio) in decoded {
             let t = ContinuousClock.now

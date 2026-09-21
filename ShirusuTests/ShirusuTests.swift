@@ -154,7 +154,7 @@ struct TranscriptionPipelineTests {
     )
     func transcribesAFile() async throws {
         let models = try await ModelSetup.prepare { _, _ in }
-        let session = TranscriptionSession(models: models, profile: .live)
+        let session = TranscriptionSession(engine: BatchTranscriber(models: models), profile: .live)
         let feed = try await FileFeed.load(url: try fixture("speech-pt", "m4a"), pace: .fast)
 
         session.start(feed)
@@ -239,7 +239,7 @@ struct DictationCadenceTests {
         let models = try await ModelSetup.prepare { _, _ in }
 
         for profile in [ShirusuModel.Profile.live, .pushToTalk] {
-            let session = TranscriptionSession(models: models, profile: profile)
+            let session = TranscriptionSession(engine: BatchTranscriber(models: models), profile: profile)
             let feed = try await FileFeed.load(
                 url: try fixture("speech-pt", "m4a"), pace: .realtime)
             let total = try #require(feed.duration)

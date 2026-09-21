@@ -30,7 +30,7 @@ struct ShortUtteranceTests {
         let models = try await ModelSetup.prepare { _, _ in }
         // One session for the run, as the app has: the CTC head and the
         // pre-warmed manager are paid for once, not per utterance.
-        let session = TranscriptionSession(models: models, profile: .pushToTalk)
+        let session = TranscriptionSession(engine: BatchTranscriber(models: models), profile: .pushToTalk)
 
         for name in ["speech-tiny", "speech-short", "speech-pt"] {
             session.clear()
