@@ -18,6 +18,12 @@ struct TextToSpeechView: View {
     @State private var mlxAudio = MLXAudioControls()
     @State private var isManagingVoices = false
     @State private var exporting: AudioExport?
+    /// Why the last save did not land, if it did not.
+    ///
+    /// The exporter writes the file itself and reports back only through
+    /// its result; dropping that result is how a sandbox denial reached the
+    /// person as a panel that closed and no file.
+    @State private var exportFailure: String?
     @State private var voiceDescription = ""
     @State private var cloning: CloningEngine = .quick
     /// Kept apart from `voiceDescription`: there it defines the voice, here it
@@ -104,6 +110,16 @@ struct TextToSpeechView: View {
                 }
             }
 
+            if let exportFailure {
+                Section {
+                    Label(exportFailure, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .font(Typeface.secondary)
+                    Button("Dismiss") { self.exportFailure = nil }
+                        .buttonStyle(.link)
+                }
+            }
+
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
@@ -122,7 +138,12 @@ struct TextToSpeechView: View {
             document: exportDocument,
             contentType: exporting?.contentType ?? .wav,
             defaultFilename: app.speech.lastTake?.suggestedName
-        ) { _ in exporting = nil }
+        ) { result in
+            exporting = nil
+            if case .failure(let error) = result {
+                exportFailure = error.localizedDescription
+            }
+        }
         .sheet(isPresented: $isManagingVoices) {
             VoiceProfilesView(language: language).environment(app)
         }
