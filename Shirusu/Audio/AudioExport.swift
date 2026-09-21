@@ -20,7 +20,7 @@ nonisolated enum AudioExport: String, CaseIterable, Identifiable, Sendable {
     var contentType: UTType {
         switch self {
         case .wav: .wav
-        case .m4a: .mpeg4Audio
+        case .m4a: .m4a
         }
     }
 
@@ -80,6 +80,17 @@ nonisolated enum AudioExport: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+extension UTType {
+    /// `com.apple.m4a-audio`, which the system declares and
+    /// UniformTypeIdentifiers has no constant for.
+    ///
+    /// Not `.mpeg4Audio`: that one is `public.mpeg-4-audio`, and its preferred
+    /// extension is `mp4`. The container is the same either way — what changes
+    /// is the name the file lands under, and a menu item reading M4A that
+    /// hands back an `.mp4` is a promise broken in the Finder.
+    nonisolated static let m4a = UTType("com.apple.m4a-audio") ?? .mpeg4Audio
+}
+
 enum AudioExportError: LocalizedError {
     case couldNotEncode
 
@@ -95,7 +106,11 @@ enum AudioExportError: LocalizedError {
 /// importer somewhere it makes no sense.
 nonisolated struct SpeechDocument: FileDocument {
     static let readableContentTypes: [UTType] = []
-    static let writableContentTypes: [UTType] = [.wav, .mpeg4Audio]
+    // Taken from the cases rather than listed again. A type offered in the
+    // menu but missing here is not refused: the exporter quietly writes the
+    // first entry instead, so the two lists disagreeing costs a file in the
+    // wrong format rather than an error.
+    static let writableContentTypes: [UTType] = AudioExport.allCases.map(\.contentType)
 
     let samples: [Float]
     let sampleRate: Int
