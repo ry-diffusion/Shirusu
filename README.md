@@ -1,13 +1,13 @@
 <div align="center">
 
-<img src="Docs/AppIcon.png" width="160" alt="Shirusu app icon">
+<img src="Docs/AppIcon.png" width="160" alt="記す">
 
-# Shirusu
+# 記す
 
-**Speech and text, both ways, on your own Mac.**
+**Say it, and it's written. Write it, and it's said.**
 
-Transcribe a recording, caption what the Mac is playing, dictate into any app,
-or have written text spoken back — with the models running locally.
+A Mac app that turns speech into text and text into speech —
+without sending a word of it anywhere.
 
 *記す — to write it down.*
 
@@ -15,137 +15,104 @@ or have written text spoken back — with the models running locally.
 
 ---
 
-## What it does
+## What you can do with it
 
-One recogniser behind four screens, because the jobs want opposite things from
-the same machinery.
+### 📄 Turn a recording into text
 
-| | |
-|---|---|
-| **Transcribe** | Drop in a recording and read it back as text. The one mode with a document, a result, and something worth copying. |
-| **Live Captions** | Hold the Globe key and a caption bar follows what is being said — the microphone, or whatever the Mac is playing. |
-| **Dictation** | Hold the Globe key, speak, and the words are typed where your cursor already is, in whatever app you were in. |
-| **Text to Speech** | Write something and hear it in a local voice: a ready one, your own copied from a recording, or one built from a description. |
+Drop in a voice message, an interview, a lecture, a meeting you recorded. Read
+it back as text you can copy. It keeps the punctuation and the capital letters,
+so you get something that reads like writing rather than a wall of words.
 
-Transcribe works before any permission has been granted, which is why a first
-launch opens there.
+### 💬 Put captions on anything
 
-## How it works
+Hold the Globe key (🌐) and a caption bar follows what is being said — the
+person in front of you, or whatever your Mac is playing. A video with no
+subtitles, a call, a voice note from a friend who talks fast.
 
-**Recognition** is Parakeet TDT v3 through [FluidAudio](https://github.com/FluidInference/FluidAudio)
-— 25 languages, and unlike the streaming models it keeps punctuation and
-capitalisation in Portuguese, including English terms dropped mid-sentence. The
-decoder is pinned to the Latin script, which filters by writing system rather
-than by language, so "commit" and "BMW" survive while the decoder stops drifting
-into Cyrillic on unclear audio.
+### 🎙 Dictate into any app
 
-The same engine runs two windows. Captions take the proven long layout, where
-confirmations are slower but the text settles correctly. Push-to-talk takes the
-floor — 1 s chunks, 0.5 s of right context — because an utterance lasting
-seconds would never confirm if it had to wait ten seconds for context. What you
-keep from a dictation comes from a release pass over the whole utterance, so the
-live stream is a progress indicator and nothing else.
+Hold 🌐, say what you mean, let go. The words appear where your cursor already
+was — your email, your chat, your notes, anywhere you were already typing. No
+window to switch to, nothing to copy across.
 
-**Rambler** cleans dictation up the way people actually speak it: the false
-starts, the "no, wait, make that". Apple's on-device model does the work, so the
-words never leave the Mac. Nothing it returns is trusted — every result is
-checked against what was actually said (same language, same figures,
-recognisably the same utterance) before it is typed anywhere, because a rewrite
-that says something slightly different is worse than a stray "um": it is fluent,
-and therefore invisible.
+### 🔊 Hear it read out loud
 
-Seven built-in profiles ship — Faithful, Balanced, Aggressive, Formal, Formal
-for a client, Casual, Shorter — and you can write your own. A profile marked as
-a *transform* turns the resemblance checks off, for the case where a spoken
-request is meant to become a page of prose.
+Type something and listen to it. Pick one of ten ready voices, copy a voice from
+a recording, or just describe the voice you want — "an older man, hoarse,
+speaking slowly" — and hear it invented.
 
-**Text insertion** goes through the pasteboard and a synthesised ⌘V rather than
-typing character by character: one event whatever the keyboard layout is, no
-dead keys to map, instant instead of a visible crawl, and it survives
-autocomplete. The whole pasteboard is saved and put back, not just the string.
+---
 
-**System audio** is captured with a Core Audio process tap, not ScreenCaptureKit.
-A tap asks only for "System Audio Recording Only"; ScreenCaptureKit would demand
-Screen Recording, put a capture indicator in the menu bar, and re-prompt
-periodically — all to record audio it does not need the screen for.
+## It cleans up how people actually talk
 
-**Speech** runs on Supertonic for ready voices (four compact Core ML stages, ten
-voices, eight languages), Chatterbox for a quick voice copy (~1.7 GB, 24 kHz),
-and VoxCPM2 for the higher-quality copy or a voice invented from a description
-(~3.2 GB, 48 kHz, and the only one that will take a note on delivery).
+Nobody speaks in finished sentences. You start again, you say "um", you change
+your mind halfway: *"send it to Pedro — no, to João."*
 
-**Models are let go of.** Each has an idle deadline sized to the cost of being
-wrong — 2 minutes for the heavy voices, 10 for Supertonic, 30 for transcription
-— and everything is handed back at once the moment the system reports memory
-pressure. Both sides reload on next use, so that costs latency rather than
-function.
+記す can tidy that before the words land. One recipient, no "um", the sentence
+you meant. There are seven ways to be tidied, from **Faithful** (fix the
+stumbles, touch nothing else) through **Casual** and **Formal** to **Shorter**,
+and you can write your own.
 
-## Requirements
+It is careful on purpose. Anything it comes up with is checked against what you
+actually said — same language, same numbers, recognisably the same sentence —
+and thrown away if it drifted. A tidy-up that quietly says something *slightly*
+different is worse than leaving the "um" in.
 
-- macOS 27 or later, Apple Silicon
-- Xcode 27 (Swift 6)
-- Disk for the models, fetched on demand: Parakeet on first launch, and a voice
-  model only when you first ask Shirusu to speak in a way that needs one
-  (Chatterbox ~1.7 GB, VoxCPM2 ~3.2 GB)
+---
 
-## Building
+## Nothing leaves your Mac
 
-```sh
-open Shirusu.xcodeproj
-```
+This is the part worth saying plainly: your voice, your recordings and your
+dictation stay on the machine. The listening, the tidying and the speaking all
+happen locally. There is no account, no upload, no server.
 
-Build and run the **Shirusu** scheme. Swift Package Manager resolves the
-dependencies on first open; the transcription model downloads on first launch,
-with the window usable while it does — Text to Speech has nothing to do with the
-recogniser and works throughout.
+The one exception is something you have to switch on yourself: if you want
+Google's Gemini to do the tidying instead of Apple's on-device model — useful
+when you want a spoken sentence expanded into a whole document — you can. It is
+off by default, and your API key is kept in the Keychain.
 
-```sh
-xcodebuild -scheme Shirusu -destination 'platform=macOS' build
-xcodebuild -scheme Shirusu -destination 'platform=macOS' test
-```
+---
 
-## Setting up the Globe key
+## Getting started
 
-Two things gate push-to-talk, and neither is in the app's gift:
+**You'll need** a Mac with Apple Silicon running macOS 27 or later.
 
-1. **System Settings → Keyboard → "Press 🌐 to" → Do Nothing.** Otherwise macOS
-   routes the key to the emoji picker or the input-source switcher.
-2. **Accessibility permission**, for the event tap that reads the key while
-   another app is frontmost. The tap is listen-only: it observes the press
-   without swallowing it.
+**First launch** downloads the model that does the listening. The window opens
+straight away and you can start using Text to Speech while it comes down.
+Voice-copying models are only fetched if and when you ask for one.
 
-Dictation also needs Accessibility to paste into the focused app, the microphone
-for what it hears, and — for captions off system audio — System Audio Recording.
-Shirusu asks for each when the feature that needs it is first used.
+**To use the Globe key**, two things need setting up once:
 
-## Layout
+1. Open **System Settings → Keyboard → "Press 🌐 to"** and choose **Do Nothing**.
+   Otherwise the key still belongs to the emoji picker.
+2. Give 記す **Accessibility** permission when it asks. That is what lets it
+   notice the key while you are in another app, and type the words where your
+   cursor is. It only watches the key — pressing it still does everything else
+   it normally would.
 
-```
-Shirusu/
-  App/          AppModel, the activity state machine, design tokens, model residency
-  ASR/          Model download and compile, batch transcription, vocabulary fixes
-  Audio/        Microphone, system-audio tap, file replay, decoding, WAV/M4A export
-  Dictation/    Rambler, rewrite profiles, provider config, text insertion
-  Hotkey/       Globe key event tap
-  Pipeline/     Transcript and the session that drives the engine
-  TTS/          Local speech: Supertonic, Chatterbox, VoxCPM2
-  Views/        SwiftUI screens, caption panel, activity strip
-  Voice/        Saved voice profiles and enrolment
-ShirusuTests/   51 tests, including runs against real recorded speech
-```
+It will also ask for the microphone, and for permission to hear your Mac's own
+audio if you want captions on what is playing. Each one is asked for when you
+first use the feature that needs it, never up front.
 
-Custom vocabulary corrects only whole words the recogniser is known to produce
-— it cannot invent, paraphrase, or touch a word that is not listed. Every
-built-in entry came from a transcript that was measured, not guessed.
+---
 
-## Privacy
+## Languages
 
-Everything above runs on this Mac. The one exception is opt-in: Gemini may be
-chosen instead of Apple Intelligence for rewriting dictation, for profiles that
-deliberately turn a short utterance into a much longer document. Its API key
-lives in the login Keychain, never in `UserDefaults`, and the default provider
-is the on-device one.
+It understands **25 languages** and handles the mixed sentences people really
+write — an English word dropped into a Portuguese one comes back spelled right.
+It speaks **8**: Portuguese, English, Spanish, French, German, Italian, Japanese
+and Korean.
 
-## Localisation
+The app itself is in English and Brazilian Portuguese.
 
-English and Brazilian Portuguese, as string catalogs (298 strings).
+---
+
+## Building it yourself
+
+Open `Shirusu.xcodeproj` in Xcode 27 and run. Swift Package Manager fetches the
+dependencies on first open; nothing else to set up.
+
+Under the hood: SwiftUI and Swift 6, Parakeet TDT v3 through
+[FluidAudio](https://github.com/FluidInference/FluidAudio) for listening,
+Apple's Foundation Models for the tidying, and Supertonic, Chatterbox and
+VoxCPM2 for the voices.
