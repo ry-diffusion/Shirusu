@@ -9,6 +9,8 @@
 Transcribe a recording, caption what the Mac is playing, dictate into any app,
 or have written text spoken back — with the models running locally.
 
+*記す — to write it down.*
+
 </div>
 
 ---
