@@ -82,6 +82,15 @@ final class TranscriptionSession {
     /// dead until the app was relaunched.
     var onFinish: ((String) -> Void)?
 
+    /// Called with the source's name when a press ended before the device had
+    /// opened, so there was never any audio to transcribe.
+    ///
+    /// Separate from `onFinish`, which still fires with empty text: the run
+    /// did end, and everything waiting on that has to be let go of either way.
+    /// This says *why* it was empty, which is the difference between a press
+    /// that heard silence and a press that never got a microphone.
+    var onMissedCapture: ((String) -> Void)?
+
     private let capture = UtteranceBuffer()
     /// Shared, not owned. The CoreML weights are most of a gigabyte, so the
     /// file screen and the live screens get their own transcript and their own
@@ -92,6 +101,13 @@ final class TranscriptionSession {
     /// Set by `stop()`. The feed loop breaks on it and then finalises, which is
     /// the difference between releasing the key and throwing the audio away.
     private var isStopping = false
+    /// Whether the key came up before the device was open.
+    ///
+    /// Neither the model nor the run is at fault when this is set: the
+    /// hardware was still negotiating a format, so there is no audio and never
+    /// was. Worth saying out loud, because the alternative is a press that
+    /// silently does nothing and a person who presses it again.
+    private var stoppedBeforeOpen = false
     private var intent: Intent = .utterance
     /// Guards against reporting the same run twice.
     private var hasFinished = false
@@ -150,6 +166,7 @@ final class TranscriptionSession {
         level = 0
         startedAt = .now
         isStopping = false
+        stoppedBeforeOpen = false
 
         run = Task { [weak self] in
             guard let self else { return }
@@ -195,6 +212,10 @@ final class TranscriptionSession {
                     let final = try await self.engine.transcribe(self.capture.take())
                     if !final.isEmpty {
                         self.transcript.apply(confirmed: final, volatile: "")
+                    } else if self.stoppedBeforeOpen {
+                        self.log.error(
+                            "\(self.sourceLabel ?? "The input", privacy: .public) was still opening when the key came up")
+                        self.onMissedCapture?(self.sourceLabel ?? "")
                     }
                     self.decay()
                     self.phase = .idle
@@ -350,6 +371,9 @@ final class TranscriptionSession {
     /// Releasing the key: stop listening, then transcribe what was said.
     func stop() {
         guard phase.isBusy else { return }
+        // Still `.starting` means `opened()` has not returned: the device is
+        // mid-negotiation and has recorded nothing.
+        stoppedBeforeOpen = phase == .starting
         isStopping = true
         isSpeaking = false
         decay()

@@ -359,6 +359,20 @@ final class AppModel {
                 guard let self else { return }
                 self.deliveryTask = Task { await self.deliver(text) }
             }
+            // A press that outran the device open used to deliver nothing and
+            // say nothing, which reads as the Globe key being broken. It is
+            // worth a sentence: the second press works, and knowing that is
+            // the difference between trying again and giving up.
+            live.onMissedCapture = { [weak self] source in
+                guard let self else { return }
+                let name = source.isEmpty
+                    ? String(localized: "The microphone", comment: "Fallback input name")
+                    : source
+                self.captureProblem = .listening(
+                    String(
+                        localized: "\(name) was still opening when you let go, so there was nothing to transcribe. It stays open now — try again.",
+                        comment: "Error when the input device opened after the key came up"))
+            }
             // A state released for taking too long is a reason too.
             activity.onStuck = { [weak self] _ in
                 guard let self else { return }
