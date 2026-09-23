@@ -1,6 +1,39 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Model downloads" : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Downloads de modelos" } } }
+    },
+    "Use hf-mirror.com" : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Usar hf-mirror.com" } } }
+    },
+    "New model downloads and update checks use the selected source. Models already on this Mac remain available offline." : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Novos downloads de modelos e verificações de atualizações usam a fonte selecionada. Os modelos já presentes neste Mac continuam disponíveis offline." } } }
+    },
+    "Voice models" : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Modelos de voz" } } }
+    },
+    "Supertonic · ready voices" : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Supertonic · vozes prontas" } } }
+    },
+    "Chatterbox · quick voice copy" : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Chatterbox · cópia rápida de voz" } } }
+    },
+    "VoxCPM · detailed voice copy and voice design" : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "VoxCPM · cópia detalhada e criação de voz" } } }
+    },
+    "Disabled models disappear from Text to Speech. Their downloaded files stay on this Mac, so enabling them again does not require another download." : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Modelos desativados somem de Texto para Fala. Os arquivos baixados permanecem neste Mac; reativá-los não exige outro download." } } }
+    },
+    "Transcription" : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Transcrição" } } }
+    },
+    "Parakeet stays enabled because transcription, captions, and dictation use it." : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "O Parakeet permanece ativo porque transcrição, legendas e ditado dependem dele." } } }
+    },
+    "Enable a voice model in Settings to use Text to Speech." : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Ative um modelo de voz em Ajustes para usar Texto para Fala." } } }
+    },
     "" : {
 
     },

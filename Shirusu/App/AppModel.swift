@@ -204,6 +204,9 @@ final class AppModel {
     /// Chooses the on-device or cloud rewrite engine and owns its secret.
     let modelConfig: ModelConfig
 
+    /// Which voice models are offered and where new models are downloaded from.
+    let modelPreferences = ModelPreferences()
+
     /// Cleans dictation up on release, when it is switched on.
     let rambler: Rambler
 

@@ -85,6 +85,11 @@ internet connection. When a newer transcription model is available, Shirusu
 asks before downloading it; the current model keeps working, and the update is
 used the next time you open the app. Gemini rewriting still requires a connection.
 
+Open **Shirusu → Settings** to enable or disable the Supertonic, Chatterbox and
+VoxCPM voice models. Disabling a model hides its voice options without deleting
+downloaded files. The same screen can route future model downloads and update
+checks through [hf-mirror.com](https://hf-mirror.com/) instead of Hugging Face.
+
 **To use the Globe key**, two things need setting up once:
 
 1. Open **System Settings → Keyboard → "Press 🌐 to"** and choose **Do Nothing**.

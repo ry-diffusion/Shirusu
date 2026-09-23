@@ -93,7 +93,7 @@ nonisolated enum ModelUpdates {
     }
 
     private static func remoteRevision() async throws -> String {
-        let url = URL(string: "https://huggingface.co/api/models/\(repository)")!
+        let url = URL(string: "\(ModelRegistry.baseURL)/api/models/\(repository)")!
         var request = URLRequest(url: url)
         request.timeoutInterval = 6
         let (data, response) = try await URLSession.shared.data(for: request)

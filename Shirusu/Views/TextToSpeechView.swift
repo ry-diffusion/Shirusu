@@ -62,41 +62,48 @@ struct TextToSpeechView: View {
             }
 
             Section {
-                Picker("Choose a voice", selection: $backend) {
-                    ForEach(SpeechBackend.allCases) { backend in
-                        Text(backend.label).tag(backend)
+                if enabledBackends.isEmpty {
+                    Label("Enable a voice model in Settings to use Text to Speech.", systemImage: "speaker.slash")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Picker("Choose a voice", selection: $backend) {
+                        ForEach(enabledBackends) { backend in
+                            Text(backend.label).tag(backend)
+                        }
                     }
-                }
-                .onChange(of: backend) { _, backend in
-                    if backend != .mlxAudio { isLyricsMode = false }
-                    if backend == .mlxAudio { advancedTab = .voiceCloning }
-                    app.speech.prepare(for: backend, cloning: cloning)
-                }
-
-                Picker("Language", selection: $language) {
-                    ForEach(SpeechSession.Language.allCases) { language in
-                        Text(language.label).tag(language)
+                    .onChange(of: backend) { _, backend in
+                        if backend != .mlxAudio { isLyricsMode = false }
+                        if backend == .mlxAudio { advancedTab = .voiceCloning }
+                        if enabledBackends.contains(backend) {
+                            app.speech.prepare(for: backend, cloning: cloning)
+                        }
                     }
-                }
 
-                if backend == .supertonic3 {
-                    Picker("Voice", selection: $voice) {
-                        ForEach(SpeechSession.Voice.allCases) { voice in
-                            Text(voice.rawValue).tag(voice)
+                    Picker("Language", selection: $language) {
+                        ForEach(SpeechSession.Language.allCases) { language in
+                            Text(language.label).tag(language)
+                        }
+                    }
+
+                    if backend == .supertonic3 {
+                        Picker("Voice", selection: $voice) {
+                            ForEach(SpeechSession.Voice.allCases) { voice in
+                                Text(voice.rawValue).tag(voice)
+                            }
                         }
                     }
                 }
             } header: {
                 Text("Voice")
             } footer: {
-                Text(modelDescription)
+                if !enabledBackends.isEmpty { Text(modelDescription) }
             }
 
-            if backend == .mlxAudio {
+            if backend == .mlxAudio, enabledBackends.contains(.mlxAudio) {
                 advancedWorkspace
             }
 
-            if backend == .voiceDesign {
+            if backend == .voiceDesign, enabledBackends.contains(.voiceDesign) {
                 voiceDesign
             }
 
@@ -125,10 +132,18 @@ struct TextToSpeechView: View {
         .scrollContentBackground(.hidden)
         .background(Ink.canvas)
         .toolbar { toolbarItems }
-        .onAppear { app.speech.prepare(for: backend, cloning: cloning) }
+        .onAppear { normalizeModelSelection() }
+        .onChange(of: enabledBackends) { _, _ in normalizeModelSelection() }
+        .onChange(of: enabledCloningEngines) { _, _ in normalizeModelSelection() }
         // Switching quality switches models, so it is a reason to let the
         // other one go even though nothing has been pressed yet.
-        .onChange(of: cloning) { app.speech.prepare(for: backend, cloning: cloning) }
+        .onChange(of: cloning) {
+            isLyricsMode = false
+            advancedTab = .voiceCloning
+            if enabledBackends.contains(backend), enabledCloningEngines.contains(cloning) {
+                app.speech.prepare(for: backend, cloning: cloning)
+            }
+        }
         .onDisappear { app.speech.stop() }
         .fileExporter(
             isPresented: Binding(
@@ -151,20 +166,22 @@ struct TextToSpeechView: View {
 
     @ViewBuilder
     private var advancedWorkspace: some View {
-        Section {
-            Picker("Voice Cloning workspace", selection: $advancedTab) {
-                Text("Voice Cloning").tag(AdvancedTab.voiceCloning)
-                Text("Song lyrics").tag(AdvancedTab.lyrics)
+        if cloning == .quick {
+            Section {
+                Picker("Voice Cloning workspace", selection: $advancedTab) {
+                    Text("Voice Cloning").tag(AdvancedTab.voiceCloning)
+                    Text("Song lyrics").tag(AdvancedTab.lyrics)
+                }
+                .pickerStyle(.segmented)
+            } footer: {
+                Text("Choose one task at a time. Your recording and voice controls stay in Voice Cloning; line-by-line interpretation stays in Song lyrics.")
             }
-            .pickerStyle(.segmented)
-        } footer: {
-            Text("Choose one task at a time. Your recording and voice controls stay in Voice Cloning; line-by-line interpretation stays in Song lyrics.")
         }
 
         switch advancedTab {
         case .voiceCloning:
             voiceCloning
-            advancedCloningControls
+            if cloning == .quick { advancedCloningControls }
         case .lyrics:
             lyricsControls
         }
@@ -290,12 +307,16 @@ struct TextToSpeechView: View {
                 Button("Manage voices…") { isManagingVoices = true }
             }
 
-            Picker("Quality", selection: $cloning) {
-                ForEach(CloningEngine.allCases) { engine in
-                    Text(engine.label).tag(engine)
+            if enabledCloningEngines.count > 1 {
+                Picker("Quality", selection: $cloning) {
+                    ForEach(enabledCloningEngines) { engine in
+                        Text(engine.label).tag(engine)
+                    }
                 }
+                .pickerStyle(.segmented)
+            } else {
+                Text(cloning.label).foregroundStyle(.secondary)
             }
-            .pickerStyle(.segmented)
 
             if cloning.takesDirection {
                 descriptionField("How it should sound — optional", text: $cloneDirection)
@@ -341,7 +362,26 @@ struct TextToSpeechView: View {
         }
     }
 
+    private var enabledBackends: [SpeechBackend] {
+        app.modelPreferences.availableBackends
+    }
+
+    private var enabledCloningEngines: [CloningEngine] {
+        app.modelPreferences.availableCloningEngines
+    }
+
+    private func normalizeModelSelection() {
+        guard let firstBackend = enabledBackends.first else { return }
+        if !enabledBackends.contains(backend) { backend = firstBackend }
+        if !enabledCloningEngines.contains(cloning), let first = enabledCloningEngines.first {
+            cloning = first
+        }
+        app.speech.prepare(for: backend, cloning: cloning)
+    }
+
     private var cannotSpeak: Bool {
+        guard enabledBackends.contains(backend) else { return true }
+        if backend == .mlxAudio, !enabledCloningEngines.contains(cloning) { return true }
         if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return true }
         switch backend {
         case .supertonic3: return false
@@ -418,6 +458,8 @@ struct TextToSpeechView: View {
 
     private func requestSpeech() {
         guard !app.speech.phase.isBusy else { return }
+        guard enabledBackends.contains(backend) else { return }
+        if backend == .mlxAudio, !enabledCloningEngines.contains(cloning) { return }
         app.speech.speak(
             text: text, backend: backend, language: language, voice: voice,
             mlxAudio: mlxAudio,
