@@ -88,7 +88,7 @@ enum ModelSetup {
                 String(localized: "Listing model files", comment: "Setup step")
             case .downloading(let completed, let total):
                 String(
-                    localized: "Downloading Nemotron, \(completed) of \(total) files",
+                    localized: "Downloading Parakeet, \(completed) of \(total) files",
                     comment: "Setup step")
             case .compiling(let model):
                 String(localized: "Compiling \(model)", comment: "Setup step")
@@ -105,25 +105,35 @@ enum ModelSetup {
     ) async throws -> AsrModels {
         onStep(.checking, 0)
 
-        let models = try await AsrModels.downloadAndLoad(
-            version: ShirusuModel.version,
-            progressHandler: { progress in
-                let step: Step
-                switch progress.phase {
-                case .listing:
-                    step = .listing
-                case .downloading(let completed, let total):
-                    step = .downloading(completed: completed, total: total)
-                case .compiling(let name):
-                    step = .compiling(model: name)
-                }
-                onStep(step, progress.fractionCompleted)
+        let onProgress: ProgressHandler = { progress in
+            let step: Step
+            switch progress.phase {
+            case .listing:
+                step = .listing
+            case .downloading(let completed, let total):
+                step = .downloading(completed: completed, total: total)
+            case .compiling(let name):
+                step = .compiling(model: name)
             }
-        )
+            onStep(step, progress.fractionCompleted)
+        }
+
+        let models: AsrModels
+        if ShirusuModel.isInstalled {
+            // The common path is entirely local. An update check runs later,
+            // after transcription is ready, and never blocks this load.
+            models = try await AsrModels.load(
+                from: ShirusuModel.installDirectory,
+                version: ShirusuModel.version,
+                progressHandler: onProgress)
+        } else {
+            models = try await AsrModels.downloadAndLoad(
+                version: ShirusuModel.version,
+                progressHandler: onProgress)
+        }
 
         onStep(.loading, 1)
         log.info("Parakeet ready at \(ShirusuModel.installDirectory.path, privacy: .public)")
         return models
     }
 }
-

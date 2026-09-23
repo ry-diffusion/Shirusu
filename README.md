@@ -80,6 +80,10 @@ off by default, and your API key is kept in the Keychain.
 **First launch** downloads the model that does the listening. The window opens
 straight away and you can start using Text to Speech while it comes down.
 Voice-copying models are only fetched if and when you ask for one.
+After the initial download, transcription and local rewriting work without an
+internet connection. When a newer transcription model is available, Shirusu
+asks before downloading it; the current model keeps working, and the update is
+used the next time you open the app. Gemini rewriting still requires a connection.
 
 **To use the Globe key**, two things need setting up once:
 

@@ -13,11 +13,12 @@ struct ActivityStrip: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
-        if showsSetup || showsVoice {
+        if showsSetup || showsVoice || app.isDownloadingModelUpdate {
             VStack(spacing: 0) {
                 Divider()
                 if showsSetup { row(setup) }
                 if showsVoice { row(voice) }
+                if app.isDownloadingModelUpdate { row(modelUpdate) }
             }
             .background(.bar)
             .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -60,6 +61,13 @@ struct ActivityStrip: View {
                 ? String(localized: "Downloading the model this voice needs. It stays on this Mac.")
                 : String(localized: "Reading your text."),
             fraction: isPreparing ? app.speech.downloadFraction : nil)
+    }
+
+    private var modelUpdate: Work {
+        Work(
+            title: "Updating transcription model",
+            detail: String(localized: "Downloading in the background. The current model remains available."),
+            fraction: nil)
     }
 
     private func row(_ work: Work) -> some View {

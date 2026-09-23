@@ -21,6 +21,9 @@ final class AppModel {
     private(set) var setupFraction: Double = 0
     /// Whether this run is the one that has to fetch the models.
     private(set) var isFirstInstall = false
+    private(set) var availableModelRevision: String?
+    private(set) var isDownloadingModelUpdate = false
+    private(set) var modelUpdateMessage: String?
     /// Two transcripts, one engine.
     ///
     /// They were one session, and that is why the Globe key only worked on the
@@ -321,6 +324,11 @@ final class AppModel {
         guard stage != .ready else { return }
 
         stage = .preparing
+        do {
+            try await ModelUpdates.installPending()
+        } catch {
+            log.error("Could not install staged model update: \(error.localizedDescription, privacy: .public)")
+        }
         isFirstInstall = !ShirusuModel.isInstalled
         setupFraction = 0
         setupStep = .checking
@@ -386,6 +394,10 @@ final class AppModel {
             // built, and this one exists entirely for its side effect.
             _ = memoryPressure
             stage = .ready
+            Task { [weak self] in
+                guard let self else { return }
+                self.availableModelRevision = try? await ModelUpdates.availableRevision()
+            }
             // Warm the release pass in the background: the window is already
             // usable, and the first press should not pay for it.
             // Warmed after the first-run screen has finished animating out,
@@ -423,6 +435,25 @@ final class AppModel {
         stage = .preparing
         Task { await bootstrap() }
     }
+
+    func postponeModelUpdate() {
+        availableModelRevision = nil
+    }
+
+    func downloadModelUpdate() async {
+        guard let revision = availableModelRevision, !isDownloadingModelUpdate else { return }
+        availableModelRevision = nil
+        isDownloadingModelUpdate = true
+        defer { isDownloadingModelUpdate = false }
+        do {
+            try await ModelUpdates.download(revision)
+            modelUpdateMessage = String(localized: "The updated transcription model is ready. It will be used the next time you open Shirusu.")
+        } catch {
+            modelUpdateMessage = String(localized: "The model update could not be downloaded: \(error.localizedDescription). Your current model still works offline.")
+        }
+    }
+
+    func dismissModelUpdateMessage() { modelUpdateMessage = nil }
 }
 
 extension AppModel {

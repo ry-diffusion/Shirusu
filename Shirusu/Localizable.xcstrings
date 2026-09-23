@@ -727,13 +727,45 @@
         }
       }
     },
+    "Download update" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baixar atualização"
+          }
+        }
+      }
+    },
+    "Downloading in the background. The current model remains available." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baixando em segundo plano. O modelo atual continua disponível."
+          }
+        }
+      }
+    },
     "Downloading Nemotron, %lld of %lld files" : {
       "comment" : "Setup step",
+      "extractionState" : "stale",
       "localizations" : {
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Baixando o Nemotron, %lld de %lld arquivos"
+          }
+        }
+      }
+    },
+    "Downloading Parakeet, %lld of %lld files" : {
+      "comment" : "Setup step",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baixando o Parakeet, %1$lld de %2$lld arquivos"
           }
         }
       }
@@ -1356,6 +1388,16 @@
         }
       }
     },
+    "Later" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mais tarde"
+          }
+        }
+      }
+    },
     "Length changed too much for this setting, so it was discarded." : {
       "comment" : "Why a rewrite was not used",
       "localizations" : {
@@ -1493,11 +1535,23 @@
     },
     "Loading Nemotron onto the Neural Engine." : {
       "comment" : "Shown while a cached model is loaded",
+      "extractionState" : "stale",
       "localizations" : {
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Carregando o Nemotron no Neural Engine."
+          }
+        }
+      }
+    },
+    "Loading Parakeet onto the Neural Engine." : {
+      "comment" : "Shown while a cached model is loaded",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carregando o Parakeet no Neural Engine."
           }
         }
       }
@@ -1595,6 +1649,16 @@
           "stringUnit" : {
             "state" : "machine_translated",
             "value" : "Modelo"
+          }
+        }
+      }
+    },
+    "Model update" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atualização do modelo"
           }
         }
       }
@@ -2273,6 +2337,16 @@
         }
       }
     },
+    "Shirusu can download a newer model. The current model keeps working offline. The update will be used next time you open the app." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Shirusu pode baixar um modelo mais recente. O modelo atual continua funcionando offline. A atualização será usada na próxima vez que você abrir o app."
+          }
+        }
+      }
+    },
     "Shirusu could not package that audio for saving." : {
       "localizations" : {
         "pt-BR" : {
@@ -2305,11 +2379,23 @@
     },
     "Shirusu is fetching Nemotron, the speech model it transcribes with. This happens once. Afterwards everything runs on this Mac, with nothing sent anywhere." : {
       "comment" : "Explains the one-time model download",
+      "extractionState" : "stale",
       "localizations" : {
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "O Shirusu está baixando o Nemotron, o modelo de fala que faz a transcrição. Isso acontece uma vez só. Depois tudo roda neste Mac, sem enviar nada para lugar nenhum."
+          }
+        }
+      }
+    },
+    "Shirusu is fetching Parakeet, the speech model it transcribes with. This happens once. Afterwards transcription runs on this Mac, with nothing sent anywhere." : {
+      "comment" : "Explains the one-time model download",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Shirusu está baixando o Parakeet, o modelo usado para transcrever áudio. Isso acontece uma vez. Depois, a transcrição roda neste Mac, sem enviar nada para outros serviços."
           }
         }
       }
@@ -2653,6 +2739,26 @@
         }
       }
     },
+    "The model changed while downloading. Try again later." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O modelo mudou durante o download. Tente novamente mais tarde."
+          }
+        }
+      }
+    },
+    "The model download is incomplete. Try again later." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O download do modelo está incompleto. Tente novamente mais tarde."
+          }
+        }
+      }
+    },
     "The model stopped answering, so your words were typed as spoken." : {
       "comment" : "Why a rewrite was not used",
       "localizations" : {
@@ -2660,6 +2766,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "O modelo parou de responder, então suas palavras foram digitadas como faladas."
+          }
+        }
+      }
+    },
+    "The model update could not be downloaded: %@. Your current model still works offline." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível baixar a atualização do modelo: %@. O modelo atual continua funcionando offline."
+          }
+        }
+      }
+    },
+    "The model version could not be checked. Try again later." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível verificar a versão do modelo. Tente novamente mais tarde."
           }
         }
       }
@@ -2701,6 +2827,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "O texto é colado no app que estava em foco. Sua área de transferência volta ao normal depois."
+          }
+        }
+      }
+    },
+    "The updated transcription model is ready. It will be used the next time you open Shirusu." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O modelo de transcrição atualizado está pronto. Ele será usado na próxima vez que você abrir o Shirusu."
           }
         }
       }
@@ -2813,6 +2949,16 @@
         }
       }
     },
+    "Transcription model update available" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atualização do modelo de transcrição disponível"
+          }
+        }
+      }
+    },
     "Try again" : {
       "localizations" : {
         "pt-BR" : {
@@ -2890,6 +3036,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Menos de seis segundos. O modelo preenche o que falta, e a cópia sai menos parecida com você."
+          }
+        }
+      }
+    },
+    "Updating transcription model" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atualizando o modelo de transcrição"
           }
         }
       }

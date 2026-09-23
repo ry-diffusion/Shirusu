@@ -2,6 +2,8 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(AppModel.self) private var app
+    @State private var showsModelUpdate = false
+    @State private var showsModelUpdateResult = false
 
     var body: some View {
         Workbench()
@@ -10,6 +12,25 @@ struct RootView: View {
             .animation(Motion.settle, value: app.stage)
             .animation(Motion.settle, value: app.speech.phase)
             .task { await app.bootstrap() }
+            .onChange(of: app.availableModelRevision) { _, revision in
+                showsModelUpdate = revision != nil
+            }
+            .onChange(of: app.modelUpdateMessage) { _, message in
+                showsModelUpdateResult = message != nil
+            }
+            .alert("Transcription model update available", isPresented: $showsModelUpdate) {
+                Button("Later") { app.postponeModelUpdate() }
+                Button("Download update") {
+                    Task { await app.downloadModelUpdate() }
+                }
+            } message: {
+                Text("Shirusu can download a newer model. The current model keeps working offline. The update will be used next time you open the app.")
+            }
+            .alert("Model update", isPresented: $showsModelUpdateResult) {
+                Button("OK") { app.dismissModelUpdateMessage() }
+            } message: {
+                Text(app.modelUpdateMessage ?? "")
+            }
     }
 }
 

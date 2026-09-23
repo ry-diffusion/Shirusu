@@ -49,10 +49,10 @@ struct ModelSetupView: View {
     private var subtitle: String {
         isFirstInstall
             ? String(
-                localized: "Shirusu is fetching Nemotron, the speech model it transcribes with. This happens once. Afterwards everything runs on this Mac, with nothing sent anywhere.",
+                localized: "Shirusu is fetching Parakeet, the speech model it transcribes with. This happens once. Afterwards transcription runs on this Mac, with nothing sent anywhere.",
                 comment: "Explains the one-time model download")
             : String(
-                localized: "Loading Nemotron onto the Neural Engine.",
+                localized: "Loading Parakeet onto the Neural Engine.",
                 comment: "Shown while a cached model is loaded")
     }
 
