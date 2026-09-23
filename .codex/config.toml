@@ -1,0 +1,6 @@
+[mcp_servers.sosumi]
+url = "https://sosumi.ai/mcp"
+
+[mcp_servers.xcode]
+command = "xcrun"
+args = ["mcpbridge"]
