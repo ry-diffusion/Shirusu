@@ -97,13 +97,19 @@ struct LanguagePriorityList: View {
 
     /// What the list does right now, which depends on what is on it.
     static func explanation(for languages: [Language]) -> LocalizedStringKey {
-        guard let first = languages.first else {
-            return "No language chosen, so the recogniser may write in any alphabet it thinks it hears."
+        guard let hint = LanguagePriorities.decoderHint(for: languages) else {
+            return languages.isEmpty
+                ? "No language chosen, so the recogniser may write in any alphabet it thinks it hears."
+                : "These use different alphabets, so none is enforced and each is written in its own."
         }
-        let name = LanguagePriorities.name(of: first)
-        guard LanguagePriorities.decoderHint(for: languages) != nil else {
-            return "These use different alphabets, so none is enforced. \(name) is still what the rewrite expects first."
+        let script = switch hint.script {
+        case .latin: String(localized: "Latin", comment: "Alphabet name")
+        case .cyrillic: String(localized: "Cyrillic", comment: "Alphabet name")
+        case .greek: String(localized: "Greek", comment: "Alphabet name")
         }
-        return "The recogniser still works out the language by itself; this keeps it to the right alphabet. \(name) is what the rewrite expects when a sentence mixes languages."
+        if LanguagePriorities.filtersEnglish(for: languages) {
+            return "The recogniser works out which language it hears by itself. This keeps it to the \(script) alphabet, and keeps English-only words out of French."
+        }
+        return "The recogniser works out which language it hears by itself. This keeps it to the \(script) alphabet, so unclear audio does not come out in another one."
     }
 }

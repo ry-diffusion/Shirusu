@@ -1,6 +1,27 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "These use different alphabets, so none is enforced and each is written in its own." : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Estes usam alfabetos diferentes, então nenhum é imposto e cada um é escrito no seu." } } }
+    },
+    "The recogniser works out which language it hears by itself. This keeps it to the %@ alphabet, and keeps English-only words out of French." : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "O reconhecimento descobre sozinho o idioma que ouve. Isto o mantém no alfabeto %@ e tira do francês palavras que só existem em inglês." } } }
+    },
+    "The recogniser works out which language it hears by itself. This keeps it to the %@ alphabet, so unclear audio does not come out in another one." : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "O reconhecimento descobre sozinho o idioma que ouve. Isto o mantém no alfabeto %@, para que um áudio pouco claro não saia em outro." } } }
+    },
+    "Latin" : {
+      "comment" : "Alphabet name",
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "latino" } } }
+    },
+    "Cyrillic" : {
+      "comment" : "Alphabet name",
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "cirílico" } } }
+    },
+    "Greek" : {
+      "comment" : "Alphabet name",
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "grego" } } }
+    },
     "Languages I speak" : {
       "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Idiomas que eu falo" } } }
     },
@@ -24,12 +45,6 @@
     },
     "No language chosen, so the recogniser may write in any alphabet it thinks it hears." : {
       "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Nenhum idioma escolhido, então o reconhecimento pode escrever em qualquer alfabeto que achar que ouviu." } } }
-    },
-    "These use different alphabets, so none is enforced. %@ is still what the rewrite expects first." : {
-      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Estes usam alfabetos diferentes, então nenhum é imposto. %@ continua sendo o idioma que a reescrita espera primeiro." } } }
-    },
-    "The recogniser still works out the language by itself; this keeps it to the right alphabet. %@ is what the rewrite expects when a sentence mixes languages." : {
-      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "O reconhecimento continua descobrindo o idioma sozinho; isto o mantém no alfabeto certo. %@ é o idioma que a reescrita espera quando uma frase mistura idiomas." } } }
     },
     "Model downloads" : {
       "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Downloads de modelos" } } }

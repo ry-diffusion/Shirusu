@@ -1,6 +1,5 @@
 import FluidAudio
 import Foundation
-import NaturalLanguage
 
 /// The languages someone speaks, the one they speak most first.
 ///
@@ -13,10 +12,12 @@ import NaturalLanguage
 /// writing in the Latin alphabet and quietly forced Russian, Ukrainian,
 /// Bulgarian and Greek into it.
 ///
-/// The order is also handed to the language recogniser the rewrite relies on,
-/// as a prior. A Portuguese sentence with three English words in it then reads
-/// as Portuguese, which is what decides the language the rewrite is told to
-/// answer in and the check that throws away a reply in the wrong one.
+/// It is deliberately not handed to `NLLanguageRecognizer` as hints. Measured,
+/// those are not a gentle prior: with Portuguese and English hinted, "Hola a
+/// todos, gracias por venir" came back as Portuguese, while with no hints at
+/// all every mixed Portuguese-and-English sentence tried was still recognised
+/// as Portuguese. The rewrite would have been told to answer a Spanish
+/// dictation in Portuguese.
 ///
 /// A lock rather than an actor, for the same reason as `CustomVocabulary`: the
 /// transcriber reads this on its hot path and the list changes rarely.
@@ -78,24 +79,9 @@ nonisolated final class LanguagePriorities: @unchecked Sendable {
         return first
     }
 
-    /// Priors for `NLLanguageRecognizer`, halving at each place down the list.
-    ///
-    /// A prior rather than a constraint. Someone who dictates in Portuguese all
-    /// day still dictates the odd sentence in English, and a recogniser that
-    /// could only answer Portuguese would call that one Portuguese too.
-    var recognizerHints: [NLLanguage: Double] {
-        Self.recognizerHints(for: ordered)
-    }
-
-    static func recognizerHints(for languages: [Language]) -> [NLLanguage: Double] {
-        guard !languages.isEmpty else { return [:] }
-        let weights = languages.indices.map { pow(0.5, Double($0)) }
-        // Nine tenths for the list, leaving room for the language nobody
-        // thought to add.
-        let scale = 0.9 / weights.reduce(0, +)
-        return Dictionary(
-            zip(languages.map { NLLanguage($0.rawValue) }, weights.map { $0 * scale }),
-            uniquingKeysWith: { first, _ in first })
+    /// Whether the hint will also keep English-only words out of French.
+    static func filtersEnglish(for languages: [Language]) -> Bool {
+        decoderHint(for: languages) == .french
     }
 
     /// The language as it would be written in a list of languages.
