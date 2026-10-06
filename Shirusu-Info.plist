@@ -15,6 +15,11 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 
+	<!-- Read by the `shirusu` script before it starts the binary: an app
+	     built before the command line existed would open its window instead. -->
+	<key>ShirusuCommandLine</key>
+	<integer>1</integer>
+
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>Shirusu transcribes the audio your Mac is playing, on this Mac, only while you ask it to.</string>
 </dict>

@@ -201,6 +201,36 @@ final class SpeechSession {
         }
     }
 
+    /// The same synthesis without the player, for the command line, where
+    /// the samples go to a file rather than a speaker. Nothing here touches
+    /// `phase` or `lastTake`: no screen is watching.
+    func render(
+        text: String,
+        backend: SpeechBackend,
+        language: Language,
+        voice: Voice = .f1,
+        mlxAudio: MLXAudioControls = MLXAudioControls(),
+        referenceAudio: URL? = nil,
+        cloning: CloningEngine = .quick,
+        voiceDescription: String = "",
+        progress: @escaping @Sendable (Double) -> Void = { _ in }
+    ) async throws -> SpeechTake {
+        let audio = try await engine.synthesize(
+            backend: backend,
+            text: text,
+            language: language.rawValue,
+            voice: Supertonic3Voice(rawValue: voice.rawValue) ?? .default,
+            mlxAudio: mlxAudio,
+            referenceAudio: referenceAudio,
+            cloning: cloning,
+            voiceDescription: voiceDescription,
+            lyricLines: [],
+            progress: { progress($0.fractionCompleted) },
+            willSynthesize: {}
+        )
+        return SpeechTake(samples: audio.samples, sampleRate: audio.sampleRate, text: text)
+    }
+
     func stop() {
         run &+= 1
         synthesisTask?.cancel()

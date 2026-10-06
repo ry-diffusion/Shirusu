@@ -1,0 +1,107 @@
+#!/bin/bash
+# shirusu — Shirusu's transcription and voices, from the terminal.
+#
+# Shirusu.app is sandboxed, so it cannot open a path you hand it. This script
+# opens the files instead and passes them over as stdin and stdout, which a
+# sandboxed process may always use. The models and saved voices are the app's
+# own, so nothing is downloaded twice.
+#
+#   shirusu transcribe talk.m4a --format json -o talk.json
+#   shirusu speak "Olá!" -o ola.wav
+#   shirusu dub script.json -o dub.wav
+#
+# Set SHIRUSU_APP to use a build other than the installed app.
+set -euo pipefail
+
+# Whether an app has the command line. One built before it would open its
+# window and ignore the request, so it is never started without this.
+has_cli() {
+    [[ -x "$1/Contents/MacOS/Shirusu" ]] &&
+        /usr/libexec/PlistBuddy -c "Print :ShirusuCommandLine" "$1/Contents/Info.plist" >/dev/null 2>&1
+}
+
+find_app() {
+    local candidate
+    if [[ -n "${SHIRUSU_APP:-}" ]]; then
+        echo "$SHIRUSU_APP"
+        return
+    fi
+    for candidate in "/Applications/Shirusu.app" "$HOME/Applications/Shirusu.app"; do
+        if has_cli "$candidate"; then
+            echo "$candidate"
+            return
+        fi
+    done
+    # Anywhere else Spotlight knows of, then Xcode's own builds, which it
+    # does not index. Newest first.
+    while IFS= read -r candidate; do
+        if has_cli "$candidate"; then
+            echo "$candidate"
+            return
+        fi
+    done < <({
+        mdfind "kMDItemCFBundleIdentifier == 'br.com.zesmoi.Shirusu'" 2>/dev/null
+        ls -d "$HOME"/Library/Developer/Xcode/DerivedData/Shirusu-*/Build/Products/*/Shirusu.app 2>/dev/null
+    } | while IFS= read -r path; do echo "$(stat -f %m "$path") $path"; done |
+        sort -rn | cut -d' ' -f2-)
+}
+
+app="$(find_app)"
+if [[ -z "$app" ]] || ! has_cli "$app"; then
+    echo "shirusu: no Shirusu.app with the command line found. Install a current build in" \
+        "/Applications, or point SHIRUSU_APP at one." >&2
+    exit 69
+fi
+binary="$app/Contents/MacOS/Shirusu"
+
+command="${1:-help}"
+[[ $# -gt 0 ]] && shift
+
+input=""
+output=""
+args=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -o|--output) output="${2:?-o needs a file}"; shift 2 ;;
+        --output=*) output="${1#--output=}"; shift ;;
+        -i|--input) input="${2:?-i needs a file}"; shift 2 ;;
+        --input=*) input="${1#--input=}"; shift ;;
+        -h|--help) args+=("--help"); shift ;;
+        *)
+            # The first existing file is the input for the commands that read one.
+            if [[ -z "$input" && "$1" != -* && -f "$1" ]] &&
+                [[ "$command" == "transcribe" || "$command" == "dub" ]]; then
+                input="$1"
+            else
+                args+=("$1")
+            fi
+            shift
+            ;;
+    esac
+done
+
+if [[ -n "$input" ]]; then
+    [[ -r "$input" ]] || { echo "shirusu: cannot read $input" >&2; exit 66; }
+    # The extension tells the decoder what container it is reading.
+    [[ "$command" == "transcribe" ]] && args+=("--name" "$(basename "$input")")
+    exec 0<"$input"
+fi
+
+run() { "$binary" --cli "$command" ${args[@]+"${args[@]}"}; }
+
+if [[ -z "$output" ]]; then
+    run
+    exit $?
+fi
+
+# Written beside the destination and moved into place, so a failure never
+# leaves a half-written file behind under the name that was asked for.
+mkdir -p "$(dirname "$output")"
+partial="$output.partial.$$"
+trap 'rm -f "$partial"' EXIT
+if run >"$partial"; then
+    mv -f "$partial" "$output"
+else
+    status=$?
+    exit $status
+fi

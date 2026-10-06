@@ -112,7 +112,40 @@ write — an English word dropped into a Portuguese one comes back spelled right
 It speaks **8**: Portuguese, English, Spanish, French, German, Italian, Japanese
 and Korean.
 
+Under **Dictation → Languages I speak**, list the languages you speak, the
+one you use most pinned first. The listening model still works out the
+language on its own, but the list keeps it to the right alphabet — so Russian,
+Ukrainian, Bulgarian and Greek come out in their own script — and, when French
+is pinned without English, keeps English-only words out of French.
+
 The app itself is in English and Brazilian Portuguese.
+
+---
+
+## From the terminal
+
+The same listening and voices work from the command line, for subtitles,
+voice-overs and dubbing — without opening the window:
+
+```bash
+shirusu transcribe interview.m4a --format srt -o interview.srt
+shirusu speak "Olá! Tudo bem?" --voice F2 -o hello.wav
+shirusu dub script.json -o voice.wav --report
+```
+
+`dub` takes timed lines (the JSON `transcribe --format json` writes, with the
+text translated) and renders them into one track, each line starting where the
+original did and sped up, pitch kept, if it would run into the next one.
+`shirusu voices` lists the voices you have, and `shirusu help` everything else.
+
+To install it, run `CLI/install.sh` from this repository. It links `shirusu`
+into `~/.local/bin`, and a Claude Code skill into `~/.claude/skills` that knows
+the whole dubbing workflow — transcribe, translate to fit the timing, render,
+check, and put the new voice back on the video.
+
+The app stays sandboxed: the `shirusu` script hands files to it as stdin and
+stdout, so it never needs access to anything else on your Mac. It uses the
+models and voices the app already downloaded and saved.
 
 ---
 

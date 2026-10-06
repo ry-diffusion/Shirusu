@@ -1,6 +1,6 @@
 import SwiftUI
 
-@main
+/// Started by `Launcher`, which first checks whether this run is the command line.
 struct ShirusuApp: App {
     @State private var app = AppModel()
 
