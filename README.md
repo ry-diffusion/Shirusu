@@ -118,6 +118,12 @@ language on its own, but the list keeps it to the right alphabet — so Russian,
 Ukrainian, Bulgarian and Greek come out in their own script — and, when French
 is pinned without English, keeps English-only words out of French.
 
+Switch on **Only my pinned language** and dictation is written in that
+language and nothing else, by Apple's on-device transcriber instead —
+available for Portuguese, English, Spanish, French, German and Italian. It
+does not mix languages, so an English word in a Portuguese sentence is heard
+as Portuguese; that is the trade. Apple downloads its model the first time.
+
 The app itself is in English and Brazilian Portuguese.
 
 ---

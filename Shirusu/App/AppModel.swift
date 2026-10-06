@@ -363,6 +363,7 @@ final class AppModel {
             // One engine behind both, so the weights load once.
             transcriber = engine
             let live = TranscriptionSession(engine: engine)
+            live.followsPinnedLanguage = true
             live.setContinuousUpdateInterval(captionUpdateRate.interval)
             // Only an utterance run finishes, and only dictation makes one:
             // captions run continuously and never take a release pass.
@@ -415,6 +416,11 @@ final class AppModel {
             Task { [weak self] in
                 try? await Task.sleep(for: .milliseconds(700))
                 await live.prepare()
+                // Apple's model too, when dictation is held to one language,
+                // for the same reason: the first press should not load it.
+                if let language = LanguagePriorities.shared.onlyLanguage {
+                    await PinnedTranscriber.shared.warmUp(language: language.rawValue)
+                }
                 guard let self else { return }
                 self.rambler.prepare(for: self.profiles.selected)
                 // The window the caption lives in, built but not shown.

@@ -114,6 +114,121 @@ struct LanguagePriorityList: View {
     }
 }
 
+/// "Only my pinned language", and whatever it takes to get there: a download
+/// the first time, and a refusal for a language Apple has no model for.
+struct OneLanguageToggle: View {
+    var pinned: Language?
+
+    @State private var isOn = LanguagePriorities.shared.isOnlyPinned
+    @State private var readiness: PinnedTranscriber.Readiness?
+    @State private var download: Double?
+    @State private var problem: String?
+
+    var body: some View {
+        Toggle(isOn: Binding(get: { isOn }, set: { $0 ? enable() : disable() })) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Only my pinned language")
+                Text(detail)
+                    .font(Typeface.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .toggleStyle(.switch)
+        .tint(Ink.accent)
+        .disabled(pinned == nil || readiness == .unsupported || download != nil)
+        .task(id: pinned) { await refresh() }
+
+        if let download {
+            ProgressView(value: download) {
+                Text("Downloading Apple's model for \(localeName)…")
+                    .font(Typeface.caption)
+            }
+        }
+        if let problem {
+            Label(problem, systemImage: "exclamationmark.triangle.fill")
+                .font(Typeface.caption)
+                .foregroundStyle(.orange)
+        }
+    }
+
+    private var localeName: String {
+        switch readiness {
+        case .ready(let locale), .downloadable(let locale):
+            return Locale.current.localizedString(forIdentifier: locale.identifier) ?? locale.identifier
+        case .unsupported, nil:
+            return pinned.map(LanguagePriorities.name(of:)) ?? ""
+        }
+    }
+
+    private var detail: String {
+        guard pinned != nil else {
+            return String(localized: "Add a language above to pin it first.")
+        }
+        switch readiness {
+        case .unsupported:
+            return String(localized: "Apple's transcriber has no model for \(localeName), so dictation keeps working it out by itself.")
+        case .downloadable:
+            return String(localized: "Dictation is written in \(localeName) and nothing else, by Apple's on-device transcriber instead of Parakeet. It does not mix languages: a word from another one is heard as \(localeName). Apple downloads its model the first time.")
+        case .ready, nil:
+            return String(localized: "Dictation is written in \(localeName) and nothing else, by Apple's on-device transcriber instead of Parakeet. It does not mix languages: a word from another one is heard as \(localeName).")
+        }
+    }
+
+    private func refresh() async {
+        problem = nil
+        guard let pinned else {
+            readiness = nil
+            if isOn { disable() }
+            return
+        }
+        readiness = await PinnedTranscriber.shared.readiness(for: pinned.rawValue)
+        // A different language was pinned while this was on.
+        switch readiness {
+        case .unsupported where isOn: disable()
+        case .downloadable where isOn: enable()
+        default: break
+        }
+    }
+
+    private func enable() {
+        guard let pinned else { return }
+        problem = nil
+        Task {
+            let state = await PinnedTranscriber.shared.readiness(for: pinned.rawValue)
+            readiness = state
+            switch state {
+            case .unsupported:
+                disable()
+                return
+            case .downloadable(let locale):
+                download = 0
+                defer { download = nil }
+                do {
+                    try await PinnedTranscriber.shared.install(locale) { fraction in
+                        Task { @MainActor in download = fraction }
+                    }
+                } catch {
+                    problem = String(localized: "The model could not be downloaded: \(error.localizedDescription)")
+                    disable()
+                    return
+                }
+                readiness = .ready(locale)
+            case .ready:
+                break
+            }
+            isOn = true
+            LanguagePriorities.shared.isOnlyPinned = true
+            await PinnedTranscriber.shared.warmUp(language: pinned.rawValue)
+        }
+    }
+
+    private func disable() {
+        isOn = false
+        LanguagePriorities.shared.isOnlyPinned = false
+    }
+}
+
 #Preview {
     @Previewable @State var languages: [Language] = [.portuguese, .english, .spanish]
     Form {

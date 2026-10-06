@@ -91,6 +91,12 @@ final class TranscriptionSession {
     /// that heard silence and a press that never got a microphone.
     var onMissedCapture: ((String) -> Void)?
 
+    /// Whether an utterance run is held to the pinned language when one-
+    /// language mode is on. Only the live session sets it: the mode is a
+    /// dictation setting, and a recording dropped on Transcribe, or captions
+    /// on a film in another language, should still be heard as they are.
+    var followsPinnedLanguage = false
+
     private let capture = UtteranceBuffer()
     /// Shared, not owned. The CoreML weights are most of a gigabyte, so the
     /// file screen and the live screens get their own transcript and their own
@@ -209,7 +215,7 @@ final class TranscriptionSession {
                     // there is already something to decode, rather than in
                     // front of the first word.
                     try await self.engine.load()
-                    let final = try await self.engine.transcribe(self.capture.take())
+                    let final = try await self.read(self.capture.take())
                     if !final.isEmpty {
                         self.transcript.apply(confirmed: final, volatile: "")
                     } else if self.stoppedBeforeOpen {
@@ -270,7 +276,7 @@ final class TranscriptionSession {
                 var cost = Self.minimumInterval
                 if samples.count >= BatchTranscriber.minimumSamples {
                     let started = ContinuousClock.now
-                    let text = try? await self.engine.transcribe(samples)
+                    let text = try? await self.read(samples)
 
                     // A pass takes a good fraction of a second and the model
                     // does not answer to cancellation, so this one may well
@@ -303,6 +309,18 @@ final class TranscriptionSession {
                 try? await Task.sleep(for: .seconds(wait))
             }
         }
+    }
+
+    /// The one call both passes make: Parakeet, or Apple's transcriber when
+    /// dictation is held to one language. Asked per pass, so switching the
+    /// mode takes effect on the next press without restarting anything.
+    private func read(_ samples: [Float]) async throws -> String {
+        if followsPinnedLanguage, intent == .utterance,
+            let language = LanguagePriorities.shared.onlyLanguage
+        {
+            return try await PinnedTranscriber.shared.transcribe(samples, language: language.rawValue)
+        }
+        return try await engine.transcribe(samples)
     }
 
     /// Changes how frequently the caption model is asked for a new preview.

@@ -36,8 +36,10 @@ nonisolated final class LanguagePriorities: @unchecked Sendable {
 
     private let lock = NSLock()
     private var stored: [Language]
+    private var onlyPinned: Bool
 
     private static let key = "dictationLanguages"
+    private static let onlyPinnedKey = "dictationOnlyPinned"
 
     private init() {
         if let codes = UserDefaults.standard.stringArray(forKey: Self.key) {
@@ -45,6 +47,7 @@ nonisolated final class LanguagePriorities: @unchecked Sendable {
         } else {
             stored = Self.fromSystem
         }
+        onlyPinned = UserDefaults.standard.bool(forKey: Self.onlyPinnedKey)
     }
 
     /// Most-spoken first. Empty means no preference at all.
@@ -56,6 +59,21 @@ nonisolated final class LanguagePriorities: @unchecked Sendable {
         let cleaned = Self.cleaned(languages)
         lock.withLock { stored = cleaned }
         UserDefaults.standard.set(cleaned.map(\.rawValue), forKey: Self.key)
+    }
+
+    /// Whether dictation should be written in the pinned language and no
+    /// other, through `PinnedTranscriber` instead of Parakeet.
+    var isOnlyPinned: Bool {
+        get { lock.withLock { onlyPinned } }
+        set {
+            lock.withLock { onlyPinned = newValue }
+            UserDefaults.standard.set(newValue, forKey: Self.onlyPinnedKey)
+        }
+    }
+
+    /// The one language dictation is held to, when it is held to one.
+    var onlyLanguage: Language? {
+        lock.withLock { onlyPinned ? stored.first : nil }
     }
 
     /// The hint for the decoder, or `nil` to let it pick freely.

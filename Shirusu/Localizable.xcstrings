@@ -1,6 +1,30 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Only my pinned language" : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Só o idioma fixado" } } }
+    },
+    "Downloading Apple's model for %@…" : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Baixando o modelo da Apple para %@…" } } }
+    },
+    "Add a language above to pin it first." : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Adicione um idioma acima para fixá-lo primeiro." } } }
+    },
+    "Apple's transcriber has no model for %@, so dictation keeps working it out by itself." : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "O transcritor da Apple não tem modelo para %@, então o ditado continua descobrindo o idioma sozinho." } } }
+    },
+    "Dictation is written in %@ and nothing else, by Apple's on-device transcriber instead of Parakeet. It does not mix languages: a word from another one is heard as %@. Apple downloads its model the first time." : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "O ditado é escrito em %1$@ e em nada mais, pelo transcritor da Apple neste Mac em vez do Parakeet. Ele não mistura idiomas: uma palavra de outro é ouvida como %2$@. A Apple baixa o modelo na primeira vez." } } }
+    },
+    "Dictation is written in %@ and nothing else, by Apple's on-device transcriber instead of Parakeet. It does not mix languages: a word from another one is heard as %@." : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "O ditado é escrito em %1$@ e em nada mais, pelo transcritor da Apple neste Mac em vez do Parakeet. Ele não mistura idiomas: uma palavra de outro é ouvida como %2$@." } } }
+    },
+    "The model could not be downloaded: %@" : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Não foi possível baixar o modelo: %@" } } }
+    },
+    "Apple's transcriber has no model for %@." : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "O transcritor da Apple não tem modelo para %@." } } }
+    },
     "These use different alphabets, so none is enforced and each is written in its own." : {
       "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Estes usam alfabetos diferentes, então nenhum é imposto e cada um é escrito no seu." } } }
     },

@@ -41,6 +41,7 @@ struct DictationView: View {
 
             Section {
                 LanguagePriorityList(languages: $languages)
+                OneLanguageToggle(pinned: languages.first)
             } header: {
                 Text("Languages I speak")
             } footer: {
