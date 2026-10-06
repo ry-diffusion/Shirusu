@@ -13,11 +13,17 @@
 # Set SHIRUSU_APP to use a build other than the installed app.
 set -euo pipefail
 
-# Whether an app has the command line. One built before it would open its
-# window and ignore the request, so it is never started without this.
+# Only Shirusu as signed by its own team is ever run. Anything else claiming
+# the bundle identifier — an app in Downloads, a copy someone edited — is not.
+team="7B3G244WZG"
+
+# Whether an app is the real one and has the command line. One built before
+# the command line existed would open its window and ignore the request.
 has_cli() {
     [[ -x "$1/Contents/MacOS/Shirusu" ]] &&
-        /usr/libexec/PlistBuddy -c "Print :ShirusuCommandLine" "$1/Contents/Info.plist" >/dev/null 2>&1
+        /usr/libexec/PlistBuddy -c "Print :ShirusuCommandLine" "$1/Contents/Info.plist" >/dev/null 2>&1 &&
+        codesign --verify --strict "$1" 2>/dev/null &&
+        codesign -dv "$1" 2>&1 | grep -qx "TeamIdentifier=$team"
 }
 
 find_app() {
@@ -97,7 +103,7 @@ fi
 # Written beside the destination and moved into place, so a failure never
 # leaves a half-written file behind under the name that was asked for.
 mkdir -p "$(dirname "$output")"
-partial="$output.partial.$$"
+partial="$(mktemp "$output.partial.XXXXXX")"
 trap 'rm -f "$partial"' EXIT
 if run >"$partial"; then
     mv -f "$partial" "$output"
