@@ -1,6 +1,36 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Languages I speak" : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Idiomas que eu falo" } } }
+    },
+    "Add a language" : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Adicionar idioma" } } }
+    },
+    "Pinned" : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Fixado" } } }
+    },
+    "Pin" : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Fixar" } } }
+    },
+    "Move up" : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Mover para cima" } } }
+    },
+    "Remove" : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Remover" } } }
+    },
+    "Make this the language you speak most" : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Tornar este o idioma que você mais fala" } } }
+    },
+    "No language chosen, so the recogniser may write in any alphabet it thinks it hears." : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Nenhum idioma escolhido, então o reconhecimento pode escrever em qualquer alfabeto que achar que ouviu." } } }
+    },
+    "These use different alphabets, so none is enforced. %@ is still what the rewrite expects first." : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Estes usam alfabetos diferentes, então nenhum é imposto. %@ continua sendo o idioma que a reescrita espera primeiro." } } }
+    },
+    "The recogniser still works out the language by itself; this keeps it to the right alphabet. %@ is what the rewrite expects when a sentence mixes languages." : {
+      "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "O reconhecimento continua descobrindo o idioma sozinho; isto o mantém no alfabeto certo. %@ é o idioma que a reescrita espera quando uma frase mistura idiomas." } } }
+    },
     "Model downloads" : {
       "localizations" : { "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Downloads de modelos" } } }
     },

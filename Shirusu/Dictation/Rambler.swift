@@ -435,6 +435,10 @@ final class Rambler {
 
     private static func code(of text: String) -> NLLanguage? {
         let recogniser = NLLanguageRecognizer()
+        // The languages this person says they speak, as a prior. Without it a
+        // Portuguese sentence carrying a few English terms could be called
+        // English, and the rewrite would be told to answer in English.
+        recogniser.languageHints = LanguagePriorities.shared.recognizerHints
         recogniser.processString(text)
         return recogniser.dominantLanguage
     }

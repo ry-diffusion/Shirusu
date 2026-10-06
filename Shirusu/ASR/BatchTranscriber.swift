@@ -207,6 +207,16 @@ actor BatchTranscriber {
 
     func transcribe(_ samples: [Float]) async throws -> String {
         guard samples.count >= Self.minimumSamples else { return "" }
+        let result = try await transcribeTimed(
+            samples, hint: LanguagePriorities.shared.decoderHint)
+        return Vocabulary.corrected(result.text)
+    }
+
+    /// The whole result, token timings included, for callers that need to
+    /// know *when* each word was said — subtitles and dubbing. The text is
+    /// left as the model wrote it; correcting it is the caller's business,
+    /// since a correction can change the length of what the timings describe.
+    func transcribeTimed(_ samples: [Float], hint: Language?) async throws -> ASRResult {
         // The weights may have been let go of since the last press, and none
         // of the callers is in a position to know that. Loading here is what
         // makes the deadline invisible to everything above.
@@ -217,9 +227,6 @@ actor BatchTranscriber {
             restartSweep()
         }
         var state = TdtDecoderState.make(decoderLayers: await manager.decoderLayerCount)
-        let result = try await manager.transcribe(
-            samples, decoderState: &state, language: ShirusuModel.language
-        )
-        return Vocabulary.corrected(result.text)
+        return try await manager.transcribe(samples, decoderState: &state, language: hint)
     }
 }

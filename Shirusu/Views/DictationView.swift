@@ -1,5 +1,6 @@
 import AVFoundation
 import AppKit
+import FluidAudio
 import FoundationModels
 import SwiftUI
 
@@ -10,6 +11,7 @@ struct DictationView: View {
 
     @State private var microphone = AVCaptureDevice.authorizationStatus(for: .audio)
     @State private var isEditing = false
+    @State private var languages = LanguagePriorities.shared.ordered
 
     var body: some View {
         @Bindable var app = app
@@ -35,6 +37,14 @@ struct DictationView: View {
                 Text(app.delivery == .insert
                     ? "The text is pasted into whatever app had focus. Your clipboard is put back afterwards."
                     : "Nothing is typed for you. The text waits on the clipboard until you paste it.")
+            }
+
+            Section {
+                LanguagePriorityList(languages: $languages)
+            } header: {
+                Text("Languages I speak")
+            } footer: {
+                Text(LanguagePriorityList.explanation(for: languages))
             }
 
             Section {

@@ -10,15 +10,6 @@ import OSLog
 nonisolated enum ShirusuModel {
     static let version: AsrModelVersion = .v3
 
-    /// Script hint for the decoder.
-    ///
-    /// This filters candidate tokens by *writing system*, not by language: with
-    /// Portuguese set, top-K tokens outside the Latin script lose to ones inside
-    /// it. English is Latin too, so "commit" and "BMW" are unaffected — which is
-    /// the whole reason it is safe to pin. What it does buy is that the decoder
-    /// stops drifting into Cyrillic or Greek on unclear audio.
-    static let language: Language? = .portuguese
-
     /// The two jobs have opposite shapes, so they get opposite windows.
     enum Profile: Sendable, CaseIterable {
         /// A window left open. Long sessions, so it takes the proven 2+11+2
