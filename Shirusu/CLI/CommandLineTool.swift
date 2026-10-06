@@ -53,7 +53,7 @@ enum CommandLineTool {
         case "speak": try await SpeakCommand.run(arguments)
         case "dub": try await DubCommand.run(arguments)
         case "voices": try await VoicesCommand.run(arguments)
-        case "languages": try LanguagesCommand.run(arguments)
+        case "languages": try await LanguagesCommand.run(arguments)
         case "help", "-h": Console.print(usage)
         default: throw Failure("Unknown command “\(command)”.\n\n\(usage)", code: 64)
         }
@@ -63,16 +63,19 @@ enum CommandLineTool {
         shirusu — Shirusu's transcription and voices, from the terminal.
 
         USAGE
-          shirusu transcribe <audio-or-video> [--format text|json|srt|vtt] [--language pt,en]
+          shirusu transcribe <audio-or-video> [--format text|json|srt|vtt] [--language pt,en | --only pt-BR]
           shirusu speak "text" -o out.wav [--language en] [--voice F1 | --profile NAME | --describe TEXT]
           shirusu dub script.json -o dub.wav [--max-speed 1.25] [--sample-rate 48000] [--report]
           shirusu voices
-          shirusu languages [pt en ...]
+          shirusu languages [pt en ...] [--release-models]
 
         TRANSCRIBE
           Reads any file macOS can decode, video included. --format json gives
           timed segments, which is what `dub` takes after translation.
           --language overrides the saved \u{201C}Languages I speak\u{201D} for this run.
+          --only uses Apple's transcriber held to one language instead: nothing
+          else comes out, and it also covers ja, ko and zh. It downloads Apple's
+          model for the language the first time.
 
         SPEAK
           Text comes from the arguments, --text, or stdin. Voices:
@@ -95,7 +98,9 @@ enum CommandLineTool {
 
         VOICES / LANGUAGES
           voices lists ready voices, saved profiles and enabled engines as JSON.
-          languages shows the dictation language priorities, or sets them.
+          languages shows the dictation language priorities, or sets them, and
+          which of Apple's language models (--only) the app holds. An app may
+          hold only a few; --release-models frees all but dictation's.
 
         Audio is always WAV. Files go in and out through the `shirusu` script,
         which turns paths into stdin and stdout so the app can stay sandboxed.
@@ -120,7 +125,7 @@ struct Arguments {
     var flags: Set<String> = []
 
     /// The options that never take a value. Anything else does.
-    private static let switches: Set<String> = ["help", "report", "quiet"]
+    private static let switches: Set<String> = ["help", "report", "quiet", "release-models"]
 
     init(_ raw: [String]) {
         var index = raw.startIndex

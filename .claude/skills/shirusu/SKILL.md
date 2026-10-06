@@ -10,11 +10,11 @@ go through the `shirusu` script (it turns paths into stdin/stdout), never call
 the app binary with paths yourself.
 
 ```bash
-shirusu transcribe <audio-or-video> [--format text|json|srt|vtt] [--language pt,en] [-o out]
+shirusu transcribe <audio-or-video> [--format text|json|srt|vtt] [--language pt,en | --only ja] [-o out]
 shirusu speak "text" -o out.wav [--language en] [--voice F1 | --profile NAME | --describe TEXT]
 shirusu dub script.json -o dub.wav [--max-speed 1.25] [--sample-rate 48000] [--report]
 shirusu voices          # JSON: ready voices, saved profiles, enabled engines, languages
-shirusu languages [pt en ...]   # read/set the dictation language priorities
+shirusu languages [pt en ...] [--release-models]   # dictation languages; Apple models held
 ```
 
 If `shirusu` is not on PATH, it lives in the Shirusu repo at `CLI/shirusu`
@@ -59,6 +59,14 @@ shirusu transcribe demo.mp4 --format json -o dub/source.json
 `source.json` has `language`, `duration` and `segments` (`id`, `start`,
 `end`, `text`), cut at sentences and pauses. Read it; fix obvious
 mis-hearings of product names before translating.
+
+The default engine (Parakeet) hears 25 European languages and works the
+language out itself. When the source is in **Japanese, Chinese or Korean**, or
+Parakeet comes back in the wrong language, use `--only <lang>` (e.g. `--only
+ja`, `--only pt-BR`): Apple's on-device transcriber, held to that one
+language. It downloads Apple's model for it the first time. The app may hold
+only 5 such models; `shirusu languages` shows them and `--release-models`
+frees all but the one dictation uses.
 
 **2. Write the script for each target language** (`dub/script.<lang>.json`).
 Keep every segment's `id`, `start` and `end`; replace `text` with the

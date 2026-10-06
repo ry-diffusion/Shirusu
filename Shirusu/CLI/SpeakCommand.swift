@@ -2,6 +2,7 @@ import ChatterboxTTS
 import FluidAudio
 import Foundation
 import NaturalLanguage
+import Speech
 
 /// Which voice says a line, and in what language — read from options on the
 /// command line or fields in a dub script, which are the same names.
@@ -252,19 +253,36 @@ enum VoicesCommand {
     }
 }
 
-/// `shirusu languages [codes…]`: read or set the dictation priorities.
+/// `shirusu languages [codes…]`: read or set the dictation priorities, and
+/// see which of Apple's language models the app is holding on to.
 enum LanguagesCommand {
-    static func run(_ arguments: Arguments) throws {
+    static func run(_ arguments: Arguments) async throws {
+        if arguments.flags.contains("release-models") {
+            // Everything but the language dictation is held to: an app only
+            // gets a few, and the ones a dub used once are what fills them.
+            let kept = LanguagePriorities.shared.onlyLanguage?.rawValue
+            for locale in await AssetInventory.reservedLocales
+            where locale.language.languageCode?.identifier != kept {
+                await AssetInventory.release(reservedLocale: locale)
+                Console.note("Released \(locale.identifier).")
+            }
+        }
         if !arguments.positionals.isEmpty {
             let languages = try Language.list(arguments.positionals.joined(separator: ","))
             LanguagePriorities.shared.replace(with: languages)
             Console.note("Saved. Shirusu picks this up the next time it opens.")
         }
         let ordered = LanguagePriorities.shared.ordered
-        guard !ordered.isEmpty else { return Console.print("(none: any alphabet)") }
+        if ordered.isEmpty { Console.print("(none: any alphabet)") }
         for (index, language) in ordered.enumerated() {
-            let pin = index == 0 ? "  (pinned)" : ""
+            let pin = index == 0
+                ? (LanguagePriorities.shared.isOnlyPinned ? "  (pinned, only this one)" : "  (pinned)")
+                : ""
             Console.print("\(index + 1). \(language.rawValue)  \(LanguagePriorities.name(of: language))\(pin)")
         }
+        let reserved = await AssetInventory.reservedLocales.map(\.identifier).sorted()
+        Console.print(
+            "\nApple models held: \(reserved.isEmpty ? "none" : reserved.joined(separator: ", "))"
+                + " (\(reserved.count) of \(AssetInventory.maximumReservedLocales))")
     }
 }

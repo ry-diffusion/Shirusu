@@ -21,11 +21,36 @@ enum TranscribeCommand {
             throw Failure("Under a second of audio: too short to transcribe.", code: 65)
         }
 
-        let engine = Engines.transcriber()
-        Console.note("Transcribing \(Timecode.minutes(audio.duration))…")
-        let result = try await engine.transcribeTimed(
-            audio.samples, hint: LanguagePriorities.decoderHint(for: languages))
-        let transcript = TimedTranscript(result: result, duration: audio.duration)
+        let transcript: TimedTranscript
+        if let only = arguments.value("only") {
+            // Apple's transcriber, held to one language. It also covers some
+            // Parakeet does not hear at all: Japanese, Chinese, Korean.
+            let pinned = PinnedTranscriber.shared
+            let locale: Locale
+            switch await pinned.readiness(for: only) {
+            case .unsupported:
+                throw Failure("Apple's transcriber has no model for “\(only)”.", code: 64)
+            case .downloadable(let wanted):
+                locale = wanted
+                let progress = ProgressLine()
+                progress.show("Downloading Apple's model for \(locale.identifier)")
+                try await pinned.install(locale) { progress.show("Downloading Apple's model", fraction: $0) }
+            case .ready(let ready):
+                locale = ready
+            }
+            Console.note("Transcribing \(Timecode.minutes(audio.duration)) in \(locale.identifier) only…")
+            let words = try await pinned.words(audio.samples, language: only)
+            transcript = TimedTranscript(
+                words: words, text: TimedWords.text(words), duration: audio.duration, language: only)
+        } else {
+            let engine = Engines.transcriber()
+            Console.note("Transcribing \(Timecode.minutes(audio.duration))…")
+            let result = try await engine.transcribeTimed(
+                audio.samples, hint: LanguagePriorities.decoderHint(for: languages))
+            transcript = TimedTranscript(
+                words: buildWordTimings(from: result.tokenTimings ?? []), text: result.text,
+                duration: audio.duration, language: nil)
+        }
 
         switch format {
         case "json": Console.write(try transcript.json())
@@ -95,8 +120,8 @@ struct TimedTranscript: Codable {
     let text: String
     let segments: [Segment]
 
-    init(result: ASRResult, duration: TimeInterval) {
-        let words = buildWordTimings(from: result.tokenTimings ?? [])
+    /// `language` when the caller already knows it; detected otherwise.
+    init(words: [WordTiming], text: String, duration: TimeInterval, language: String?) {
         var segments: [Segment] = []
         for line in Self.lines(from: words) {
             let text = Vocabulary.corrected(line.map(\.word).joined(separator: " "))
@@ -106,10 +131,11 @@ struct TimedTranscript: Codable {
                 end: Self.rounded(line.last!.endTime),
                 text: text))
         }
-        self.text = Vocabulary.corrected(result.text)
+        self.text = Vocabulary.corrected(text)
         self.duration = Self.rounded(duration)
         self.segments = segments
-        self.language = Self.language(of: self.text)
+        self.language = language.map { Locale(identifier: $0).language.languageCode?.identifier ?? $0 }
+            ?? Self.language(of: self.text)
     }
 
     /// A pause this long ends a line whatever the punctuation says.
