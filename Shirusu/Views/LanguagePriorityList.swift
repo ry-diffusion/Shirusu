@@ -113,3 +113,18 @@ struct LanguagePriorityList: View {
         return "The recogniser works out which language it hears by itself. This keeps it to the \(script) alphabet, so unclear audio does not come out in another one."
     }
 }
+
+#Preview {
+    @Previewable @State var languages: [Language] = [.portuguese, .english, .spanish]
+    Form {
+        Section {
+            LanguagePriorityList(languages: $languages)
+        } header: {
+            Text("Languages I speak")
+        } footer: {
+            Text(LanguagePriorityList.explanation(for: languages))
+        }
+    }
+    .formStyle(.grouped)
+    .frame(width: 520, height: 300)
+}
